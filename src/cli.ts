@@ -8,9 +8,15 @@ import { play } from "./player.js";
 import { render } from "./renderer.js";
 import { generateSrt } from "./subtitles.js";
 import { loadPlaybook } from "./playbook-io.js";
+import { checkBalance, API_KEY_ENV } from "./tts.js";
+import { loadEnvFiles } from "./env.js";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+
+// Populate process.env from .env files before any command runs. No module
+// read env at import time, so doing it here is early enough.
+loadEnvFiles();
 
 const program = new Command();
 
@@ -140,12 +146,24 @@ program
       const playbookName = path.basename(playbookPath, path.extname(playbookPath));
       const outputDir = path.resolve(path.dirname(playbookPath), playbook.recording.outputDir);
 
+      // Timings only exist once a render has measured them. Without them every
+      // cue would silently collapse to 00:00:00,000.
+      const untimed = playbook.segments.filter(s => s.videoDuration === undefined);
+      if (untimed.length > 0) {
+        throw new Error(
+          `No timing data for: ${untimed.map(s => s.id).join(", ")}\n` +
+          `Subtitles are built from measured durations, so render first:\n` +
+          `  ndemo render ${playbookPath}`
+        );
+      }
+
       const srtContent = generateSrt(
         playbook.segments.map(s => ({
           narration: s.narration,
-          videoDurationMs: s.videoDuration ?? s.audioDuration ?? 0,
+          videoDurationMs: s.videoDuration ?? 0,
           audioDurationMs: s.audioDuration ?? 0,
-        }))
+        })),
+        playbook.preSegmentDuration ?? 0
       );
 
       const srtPath = options.output ?? path.join(outputDir, `${playbookName}.srt`);
@@ -178,7 +196,7 @@ program
     try {
       const ffmpegVersion = execSync("ffmpeg -version", { encoding: "utf-8" })
         .split("\n")[0]
-        .match(/version\s+([\d.]+)/)?.[1] ?? "unknown";
+        ?.match(/version\s+([\d.]+)/)?.[1] ?? "unknown";
       console.log(`  ✓ ffmpeg ${ffmpegVersion}`);
     } catch {
       console.log("  ✗ ffmpeg not found");
@@ -188,7 +206,7 @@ program
     try {
       const ffprobeVersion = execSync("ffprobe -version", { encoding: "utf-8" })
         .split("\n")[0]
-        .match(/version\s+([\d.]+)/)?.[1] ?? "unknown";
+        ?.match(/version\s+([\d.]+)/)?.[1] ?? "unknown";
       console.log(`  ✓ ffprobe ${ffprobeVersion}`);
     } catch {
       console.log("  ✗ ffprobe not found");
@@ -206,17 +224,26 @@ program
       allOk = false;
     }
 
-    if (process.env.OPENAI_API_KEY) {
-      console.log("  ✓ OPENAI_API_KEY is set");
+    if (process.env[API_KEY_ENV]) {
+      console.log(`  ✓ ${API_KEY_ENV} is set`);
+      // Prove the key actually works, so a render doesn't fail on a 401/402
+      // after minutes of recording.
+      try {
+        const balance = await checkBalance();
+        if (balance.availableUsdCents > 0) {
+          console.log(`  ✓ llm4agents balance: ${balance.availableUsd}`);
+        } else {
+          console.log(`  ✗ llm4agents balance is ${balance.availableUsd} — TTS will fail`);
+          allOk = false;
+        }
+      } catch (err) {
+        console.log(`  ✗ llm4agents API unreachable or key rejected`);
+        console.log(`    ${String(err).replace(/\n/g, "\n    ")}`);
+        allOk = false;
+      }
     } else {
-      console.log("  ✗ OPENAI_API_KEY not set (required for TTS)");
+      console.log(`  ✗ ${API_KEY_ENV} not set (required for TTS)`);
       allOk = false;
-    }
-
-    if (process.env.ELEVENLABS_API_KEY) {
-      console.log("  ✓ ELEVENLABS_API_KEY is set");
-    } else {
-      console.log("  ✗ ELEVENLABS_API_KEY not set (optional, needed for elevenlabs TTS)");
     }
 
     process.exit(allOk ? 0 : 1);

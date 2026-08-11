@@ -103,6 +103,36 @@ const SegmentSchema = z.object({
   videoDuration: z.number().optional(),
 });
 
+// ─── TTS ─────────────────────────────────────────────
+
+/** Default TTS model on llm4agents. */
+const GROK_TTS_MODEL = "x-ai/grok-voice-tts-1.0";
+
+/** Voices supported by GROK_TTS_MODEL (case-insensitive upstream). */
+const GROK_TTS_VOICES = ["eve", "ara", "rex", "sal", "leo"] as const;
+
+const TtsSchema = z.object({
+  provider: z.enum(["llm4agents"]).default("llm4agents"),
+  model: z.string().min(1).default(GROK_TTS_MODEL),
+  voice: z.string().min(1).default("sal"),
+  speed: z.number().positive().max(4).default(1.0),
+}).superRefine((tts, ctx) => {
+  // Voices are model-specific, so only validate the model we know about.
+  // Other models pass through and are validated by the API itself.
+  if (
+    tts.model === GROK_TTS_MODEL &&
+    !GROK_TTS_VOICES.includes(tts.voice.toLowerCase() as typeof GROK_TTS_VOICES[number])
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["voice"],
+      message:
+        `"${tts.voice}" is not a voice of ${GROK_TTS_MODEL}. ` +
+        `Use one of: ${GROK_TTS_VOICES.join(", ")}`,
+    });
+  }
+});
+
 // ─── Title Card ─────────────────────────────────────
 
 const TitleCardSchema = z.object({
@@ -126,19 +156,21 @@ const PlaybookSchema = z.object({
     colorScheme: z.enum(["light", "dark"]).default("light"),
     setup: z.array(SetupStepSchema).optional(),
   }),
-  tts: z.object({
-    provider: z.enum(["openai", "elevenlabs"]).default("openai"),
-    voice: z.string().default("alloy"),
-    speed: z.number().positive().default(1.0),
-  }).default({}),
+  tts: TtsSchema.default({}),
   recording: z.object({
     outputDir: z.string().default("."),
     fps: z.number().int().positive().default(30),
   }).default({}),
   segments: z.array(SegmentSchema).min(1),
+  /**
+   * Dead time before the first segment (title card + navigation), measured
+   * and written by `render`. Subtitles need it to line up.
+   */
+  preSegmentDuration: z.number().nonnegative().optional(),
 });
 
 type Playbook = z.infer<typeof PlaybookSchema>;
+type TtsConfig = z.infer<typeof TtsSchema>;
 type Segment = z.infer<typeof SegmentSchema>;
 type Action = z.infer<typeof ActionSchema>;
 type Target = z.infer<typeof TargetSchema>;
@@ -149,9 +181,10 @@ type SetupStep = z.infer<typeof SetupStepSchema>;
 export {
   PlaybookSchema, SegmentSchema, ActionSchema,
   TargetSchema, DoneConditionSchema, ConditionSchema,
-  SetupStepSchema, TitleCardSchema,
+  SetupStepSchema, TitleCardSchema, TtsSchema,
+  GROK_TTS_MODEL, GROK_TTS_VOICES,
 };
 export type {
   Playbook, Segment, Action, Target, DoneCondition,
-  Condition, SetupStep,
+  Condition, SetupStep, TtsConfig,
 };
