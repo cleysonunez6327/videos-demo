@@ -36,6 +36,22 @@ const ErrorResponseSchema = z.object({
   requestId: z.string().optional(),
 });
 
+const MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 1500;
+
+/**
+ * Whether a failed response is worth trying again.
+ *
+ * Rate limits and server-side faults are transient; the provider returns a
+ * bare 500 often enough that a render would otherwise die minutes in, after
+ * the audio for earlier segments was already paid for. Everything else —
+ * bad request, bad key, no balance, unknown model — fails the same way on
+ * every attempt, so retrying only burns time.
+ */
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
 const BalanceResponseSchema = z.object({
   availableUsd: z.string(),
   availableUsdCents: z.number(),
@@ -95,35 +111,47 @@ async function apiFetch(
   init: Readonly<{ method: "GET" | "POST"; body?: string }>
 ): Promise<Response> {
   const apiKey = readApiKey();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let lastError = "";
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: init.method,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
-      },
-      ...(init.body ? { body: init.body } : {}),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (controller.signal.aborted) {
-      throw new Error(
-        `Request to ${url} timed out after ${REQUEST_TIMEOUT_MS / 1000}s`
-      );
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    let response: Response | null = null;
+    try {
+      response = await fetch(url, {
+        method: init.method,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          ...(init.body ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(init.body ? { body: init.body } : {}),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      lastError = controller.signal.aborted
+        ? `timed out after ${REQUEST_TIMEOUT_MS / 1000}s`
+        : String(err);
+    } finally {
+      clearTimeout(timer);
     }
-    throw new Error(`Request to ${url} failed: ${String(err)}`);
-  } finally {
-    clearTimeout(timer);
+
+    if (response?.ok) return response;
+
+    if (response) {
+      lastError = await describeFailure(response);
+      if (!isRetryableStatus(response.status)) break;
+    }
+
+    if (attempt < MAX_ATTEMPTS) {
+      process.stderr.write(
+        `  retrying (${attempt}/${MAX_ATTEMPTS - 1}): ${lastError.split("\n")[0]}\n`
+      );
+      await new Promise(r => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
+    }
   }
 
-  if (!response.ok) {
-    throw new Error(`${url}\n  ${await describeFailure(response)}`);
-  }
-  return response;
+  throw new Error(`${url}\n  ${lastError}`);
 }
 
 // ─── Speech synthesis ────────────────────────────────
@@ -253,5 +281,5 @@ async function probeDuration(audioPath: string): Promise<number> {
   return Math.round(seconds * 1000);
 }
 
-export { ensureAudio, probeDuration, checkBalance, API_KEY_ENV };
+export { ensureAudio, probeDuration, checkBalance, isRetryableStatus, API_KEY_ENV };
 export type { TtsResult };
