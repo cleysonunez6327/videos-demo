@@ -186,6 +186,13 @@ const MusicSchema = z.object({
 });
 
 const PlaybookSchema = z.object({
+  /**
+   * The instruction this demo came from, in plain language — what you would
+   * tell Claude Code to produce it again. Nothing in the pipeline reads it;
+   * it exists so a playbook explains its own intent to whoever opens it next,
+   * and so tools can show why one demo differs from another.
+   */
+  prompt: z.string().min(1).optional(),
   titleCard: TitleCardSchema.optional(),
   /** Closing card, same shape as the title card. Good place for the call to action. */
   endCard: TitleCardSchema.optional(),

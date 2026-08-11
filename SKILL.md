@@ -1,3 +1,8 @@
+---
+name: ndemo
+description: Record narrated demo videos of a web application by driving a real browser. Use when the user asks for a demo video, screencast, walkthrough, product video, tutorial video or promo of a running web app, or asks to update, re-render or restructure one. Triggers on demo video, screencast, video walkthrough, product demo, grabar un demo, video de la app, playbook.
+---
+
 # ndemo
 
 Create narrated screen-recording demo videos of web applications.
