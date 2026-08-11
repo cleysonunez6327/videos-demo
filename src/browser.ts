@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 import type { Browser, Page } from "playwright";
 import { loadPlaybook } from "./playbook-io.js";
@@ -145,12 +145,12 @@ async function connect(): Promise<BrowserConnection> {
   }
 
   const browser = await chromium.connectOverCDP(info.wsEndpoint);
-  const contexts = browser.contexts();
-  if (contexts.length === 0) throw new Error("No browser context found");
-  const pages = contexts[0].pages();
-  if (pages.length === 0) throw new Error("No page found");
+  const context = browser.contexts()[0];
+  if (!context) throw new Error("No browser context found");
+  const page = context.pages()[0];
+  if (!page) throw new Error("No page found");
 
-  return { browser, page: pages[0] };
+  return { browser, page };
 }
 
 async function close(): Promise<void> {

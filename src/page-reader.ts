@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 
 async function readPageState(
   page: Page,
-  options: { screenshot?: boolean }
+  options: { screenshot?: boolean | undefined }
 ): Promise<string> {
   const url = page.url();
   const title = await page.title();

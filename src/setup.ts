@@ -27,7 +27,9 @@ async function checkCondition(
   return true;
 }
 
-function isRunStep(step: SetupStep): step is { run: string; if?: Condition } {
+/** Extract keeps the guard tied to the real union member, so the `else`
+ *  branch narrows to the browser-action variant instead of the whole union. */
+function isRunStep(step: SetupStep): step is Extract<SetupStep, { run: string }> {
   return "run" in step;
 }
 
@@ -51,7 +53,9 @@ async function executeSetup(
           stdout: process.stderr,
           stderr: process.stderr,
           stdin: "ignore",
-          cwd: options.cwd,
+          // Spread rather than pass undefined: execa's options reject an
+          // explicit undefined cwd under exactOptionalPropertyTypes.
+          ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
         });
       } catch (err: any) {
         throw new Error(`Setup command failed: ${step.run}\n${err.message}`);

@@ -41,8 +41,7 @@ async function play(
     const playbookDir = path.dirname(path.resolve(playbookPath));
     const outputDir = path.resolve(playbookDir, playbook.recording.outputDir);
     console.log("Preparing audio...");
-    for (let i = targetStart; i <= targetEnd; i++) {
-      const seg = playbook.segments[i];
+    for (const seg of playbook.segments.slice(targetStart, targetEnd + 1)) {
       if (!seg.narration) continue;
       process.stdout.write(`  ${seg.id}...`);
       const result = await ensureAudio(seg, playbook, outputDir);
@@ -59,8 +58,7 @@ async function play(
   }
 
   // Execute pre-target segments silently
-  for (let i = 0; i < targetStart; i++) {
-    const seg = playbook.segments[i];
+  for (const seg of playbook.segments.slice(0, targetStart)) {
     if (seg.actions.length === 0) {
       console.error(
         `Warning: segment "${seg.id}" has no actions, skipping during rewind`
@@ -74,8 +72,7 @@ async function play(
   }
 
   // Play target segments with full output
-  for (let i = targetStart; i <= targetEnd; i++) {
-    const seg = playbook.segments[i];
+  for (const seg of playbook.segments.slice(targetStart, targetEnd + 1)) {
     const audio = audioMap.get(seg.id);
     console.log(`\n▸ segment ${seg.id}${seg.narration ? `: "${seg.narration}"` : ""}`);
 
@@ -101,7 +98,7 @@ async function play(
       onActionDone: () => {
         console.log(" ✓");
       },
-      onActionError: (err) => {
+      onActionError: () => {
         console.log(" ✗");
       },
     });

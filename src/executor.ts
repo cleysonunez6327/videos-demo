@@ -7,7 +7,7 @@ import { pointAt, clickEffect, hideCursor } from "./cursor.js";
 async function executeAction(
   page: Page,
   action: Action,
-  options: { cursor?: boolean } = {}
+  options: { cursor?: boolean | undefined } = {}
 ): Promise<void> {
   const showCursor = options.cursor ?? false;
 
@@ -69,18 +69,20 @@ interface SegmentResult {
 async function executeSegment(
   page: Page,
   segment: Segment,
-  options: { cursor?: boolean } = {}
+  options: { cursor?: boolean | undefined } = {}
 ): Promise<SegmentResult> {
-  for (let i = 0; i < segment.actions.length; i++) {
+  let index = 0;
+  for (const action of segment.actions) {
     try {
-      await executeAction(page, segment.actions[i], options);
+      await executeAction(page, action, options);
     } catch (err) {
       return {
         ok: false,
         error: String(err),
-        actionIndex: i,
+        actionIndex: index,
       };
     }
+    index++;
   }
   return { ok: true };
 }
@@ -95,12 +97,12 @@ async function executeSegment(
  * - Returns the actual wall-clock duration of the segment
  */
 interface RunSegmentOptions {
-  cursor?: boolean;
-  audioDurationMs?: number;
-  playAudio?: () => { kill: () => void; promise: Promise<unknown> };
-  onActionStart?: (action: Action, index: number) => void;
-  onActionDone?: (action: Action, index: number) => void;
-  onActionError?: (err: unknown, action: Action, index: number) => void;
+  cursor?: boolean | undefined;
+  audioDurationMs?: number | undefined;
+  playAudio?: (() => { kill: () => void; promise: Promise<unknown> }) | undefined;
+  onActionStart?: ((action: Action, index: number) => void) | undefined;
+  onActionDone?: ((action: Action, index: number) => void) | undefined;
+  onActionError?: ((err: unknown, action: Action, index: number) => void) | undefined;
 }
 
 async function runSegment(
@@ -128,23 +130,24 @@ async function runSegment(
   }
 
   // Execute actions
-  for (let i = 0; i < segment.actions.length; i++) {
-    const action = segment.actions[i];
-    options.onActionStart?.(action, i);
+  let index = 0;
+  for (const action of segment.actions) {
+    options.onActionStart?.(action, index);
 
     try {
       await executeAction(page, action, { cursor: options.cursor });
-      options.onActionDone?.(action, i);
+      options.onActionDone?.(action, index);
     } catch (err) {
-      options.onActionError?.(err, action, i);
+      options.onActionError?.(err, action, index);
       if (audioHandle) audioHandle.kill();
       return {
         ok: false,
         durationMs: Date.now() - segmentStart,
         error: String(err),
-        actionIndex: i,
+        actionIndex: index,
       };
     }
+    index++;
   }
 
   // Pad to audio duration

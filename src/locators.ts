@@ -3,7 +3,7 @@ import type { Target } from "./schema.js";
 
 function toLocator(page: Page, target: Target): Locator {
   if (target.role) {
-    const opts: Record<string, string> = {};
+    const opts: { name?: string } = {};
     if (target.name) opts.name = target.name;
     return page.getByRole(target.role as any, opts);
   }
