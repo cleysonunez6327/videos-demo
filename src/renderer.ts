@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 import { execa } from "execa";
-import { loadPlaybook, savePlaybook } from "./playbook-io.js";
+import { loadPlaybook, saveSegmentDurations } from "./playbook-io.js";
 import { runSegment } from "./executor.js";
 import { executeSetup } from "./setup.js";
 import { ensureAudio } from "./tts.js";
@@ -25,13 +25,18 @@ async function render(
 ): Promise<void> {
   const playbook = loadPlaybook(playbookPath);
 
-  // Validate: every segment must have at least one action
-  const emptySegments = playbook.segments.filter(s => s.actions.length === 0);
+  // A segment with narration but no actions is legitimate — it holds the
+  // current screen for as long as the narration runs. Only a segment with
+  // neither produces nothing at all, and that is almost always a mistake.
+  const emptySegments = playbook.segments.filter(
+    s => s.actions.length === 0 && !s.narration
+  );
   if (emptySegments.length > 0) {
     const ids = emptySegments.map(s => s.id).join(", ");
     throw new Error(
-      `Cannot render: the following segments have no actions: ${ids}\n` +
-      `Add actions to these segments before rendering.`
+      `Cannot render: these segments have neither narration nor actions, ` +
+      `so they would contribute nothing: ${ids}\n` +
+      `Give them narration, give them actions, or remove them.`
     );
   }
 
@@ -58,7 +63,7 @@ async function render(
   }
 
   // Save updated durations back to playbook
-  savePlaybook(playbookPath, playbook);
+  saveSegmentDurations(playbookPath, playbook.segments);
   console.log("  Audio durations saved to playbook.");
 
   // Step 2: Headless replay with CDP screencast
@@ -163,8 +168,11 @@ async function render(
     background: ${bg}; color: ${fg};
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
-  h1 { font-size: 4rem; font-weight: 700; text-align: center; line-height: 1.2; }
-  p  { font-size: 1.8rem; font-weight: 400; margin-top: 1rem; color: ${subtitleColor}; text-align: center; }
+  /* Viewport units, not rem: the title card is a data: URL, where the zoom
+     extension's content script does not run. Absolute sizes would render
+     against the full scaled viewport (e.g. 3840px) and come out tiny. */
+  h1 { font-size: 4.2vw; font-weight: 700; text-align: center; line-height: 1.2; }
+  p  { font-size: 1.9vw; font-weight: 400; margin-top: 1.2vw; color: ${subtitleColor}; text-align: center; }
 </style></head><body>
   <h1>${escapeHtml(tc.title)}</h1>
   ${tc.subtitle ? `<p>${escapeHtml(tc.subtitle)}</p>` : ""}
@@ -183,14 +191,13 @@ async function render(
   // Record segments
   const segmentTimings: Array<{ id: string; durationMs: number; audioDurationMs: number }> = [];
 
-  for (let i = 0; i < playbook.segments.length; i++) {
-    const segment = playbook.segments[i];
+  for (const segment of playbook.segments) {
     process.stdout.write(`  ${segment.id}...`);
 
     const result = await runSegment(page, segment, {
       cursor: true,
-      audioDurationMs: segment.audioDuration!,
-      onActionError: async (err, action, actionIndex) => {
+      audioDurationMs: segment.audioDuration ?? 0,
+      onActionError: async () => {
         await page.screenshot({
           path: path.join(outputDir, `error-${segment.id}.png`),
         });
@@ -211,7 +218,7 @@ async function render(
     segmentTimings.push({
       id: segment.id,
       durationMs: result.durationMs,
-      audioDurationMs: segment.audioDuration!,
+      audioDurationMs: segment.audioDuration ?? 0,
     });
     console.log(` ${(result.durationMs / 1000).toFixed(1)}s`);
   }
@@ -225,10 +232,13 @@ async function render(
   await context.close();
   fs.rmSync(userDataDir, { recursive: true, force: true });
 
-  // Save video durations back to playbook
-  savePlaybook(playbookPath, playbook);
+  // Save video durations back to playbook, plus the measured lead-in so a
+  // later `ndemo subtitles` can reproduce the same offsets.
+  saveSegmentDurations(playbookPath, playbook.segments, preSegmentDurationMs);
 
-  if (frames.length === 0) {
+  const firstFrame = frames[0];
+  const lastFrame = frames[frames.length - 1];
+  if (!firstFrame || !lastFrame) {
     throw new Error("No frames captured");
   }
 
@@ -242,18 +252,19 @@ async function render(
 
   const concatFilePath = path.join(framesDir, "frames.txt");
   let concatContent = "";
-  for (let i = 0; i < frames.length; i++) {
-    const duration = i < frames.length - 1
-      ? frames[i + 1].timestamp - frames[i].timestamp
+  for (const [i, frame] of frames.entries()) {
+    const next = frames[i + 1];
+    const duration = next
+      ? next.timestamp - frame.timestamp
       : Math.max(
-          expectedTotalSec - (frames[i].timestamp - frames[0].timestamp),
+          expectedTotalSec - (frame.timestamp - firstFrame.timestamp),
           1 / 30,
         );
-    concatContent += `file '${path.resolve(frames[i].filePath)}'\n`;
+    concatContent += `file '${path.resolve(frame.filePath)}'\n`;
     concatContent += `duration ${Math.max(duration, 0.001).toFixed(6)}\n`;
   }
   // concat demuxer needs the last file repeated without duration
-  concatContent += `file '${path.resolve(frames[frames.length - 1].filePath)}'\n`;
+  concatContent += `file '${path.resolve(lastFrame.filePath)}'\n`;
   fs.writeFileSync(concatFilePath, concatContent);
 
   const videoPath = path.join(outputDir, `${playbookName}-video.mp4`);
@@ -277,14 +288,26 @@ async function render(
   console.log("\nMerging audio and video...");
   const finalOutput = outputPath ?? path.join(outputDir, `${playbookName}.mp4`);
 
+  // audioResults and segmentTimings are built in lockstep with segments;
+  // zip them once here so the missing-data case is stated rather than assumed.
+  const renderedSegments = playbook.segments.map((s, i) => {
+    const audio = audioResults[i];
+    const timing = segmentTimings[i];
+    if (!audio || !timing) {
+      throw new Error(`Missing render data for segment "${s.id}"`);
+    }
+    return {
+      id: s.id,
+      narration: s.narration,
+      audioPath: audio.audioPath,
+      audioDurationMs: s.audioDuration ?? 0,
+      videoDurationMs: timing.durationMs,
+    };
+  });
+
   await mergeAudioVideo({
     videoPath,
-    segments: playbook.segments.map((s, i) => ({
-      id: s.id,
-      audioPath: audioResults[i].audioPath,
-      audioDurationMs: s.audioDuration!,
-      videoDurationMs: segmentTimings[i].durationMs,
-    })),
+    segments: renderedSegments,
     outputPath: finalOutput,
     outputDir,
     preSegmentDurationMs,
@@ -298,10 +321,10 @@ async function render(
   // Generate SRT subtitles
   const srtPath = finalOutput.replace(/\.mp4$/, ".srt");
   const srtContent = generateSrt(
-    playbook.segments.map((s, i) => ({
+    renderedSegments.map(s => ({
       narration: s.narration,
-      videoDurationMs: segmentTimings[i].durationMs,
-      audioDurationMs: s.audioDuration!,
+      videoDurationMs: s.videoDurationMs,
+      audioDurationMs: s.audioDurationMs,
     })),
     preSegmentDurationMs
   );
