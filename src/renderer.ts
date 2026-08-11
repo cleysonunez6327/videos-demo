@@ -121,18 +121,26 @@ async function render(
   }
   const frames: CapturedFrame[] = [];
   let frameIndex = 0;
-  let pendingWrites = 0;
+  let screencastStopped = false;
 
-  cdp.on("Page.screencastFrame", async (params) => {
+  cdp.on("Page.screencastFrame", (params) => {
+    // Frames keep arriving while the screencast is being torn down. Writing
+    // one is harmless, but acking it against a closed session rejects — and
+    // an unhandled rejection in an event handler takes the process down with
+    // the whole render, after every segment has already been recorded.
+    if (screencastStopped) return;
+
     const filePath = path.join(framesDir, `frame-${String(frameIndex).padStart(7, "0")}.jpeg`);
     const timestamp = params.metadata.timestamp ?? (Date.now() / 1000);
     frameIndex++;
-    pendingWrites++;
     fs.writeFileSync(filePath, Buffer.from(params.data, "base64"));
     frames.push({ filePath, timestamp });
-    pendingWrites--;
 
-    await cdp.send("Page.screencastFrameAck", { sessionId: params.sessionId });
+    void cdp
+      .send("Page.screencastFrameAck", { sessionId: params.sessionId })
+      .catch(() => {
+        // The session closed between the frame arriving and this ack.
+      });
   });
 
   await cdp.send("Page.startScreencast", {
@@ -217,8 +225,9 @@ ${tc.stat
     });
 
     if (!result.ok) {
-      await cdp.send("Page.stopScreencast");
-      await cdp.detach();
+      screencastStopped = true;
+      await cdp.send("Page.stopScreencast").catch(() => {});
+      await cdp.detach().catch(() => {});
       await context.close();
       fs.rmSync(userDataDir, { recursive: true, force: true });
       throw new Error(
@@ -235,12 +244,13 @@ ${tc.stat
     console.log(` ${(result.durationMs / 1000).toFixed(1)}s`);
   }
 
-  // Stop screencast and wait for pending frame writes
-  await cdp.send("Page.stopScreencast");
-  while (pendingWrites > 0) {
-    await new Promise(r => setTimeout(r, 50));
-  }
-  await cdp.detach();
+  // Stop the screencast, then let any frame already in flight land before
+  // detaching. Frame writes are synchronous, so the only thing to wait for
+  // is delivery of events the browser has already sent.
+  screencastStopped = true;
+  await cdp.send("Page.stopScreencast").catch(() => {});
+  await new Promise(r => setTimeout(r, 200));
+  await cdp.detach().catch(() => {});
   await context.close();
   fs.rmSync(userDataDir, { recursive: true, force: true });
 
