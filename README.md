@@ -199,6 +199,21 @@ app:
       if:                             # conditional (skip if not met)
         visible: ".login-form"
 
+endCard:                            # optional closing card, same shape
+  title: "myapp.dev"                #   as titleCard. Put the CTA here.
+  subtitle: "Start free"
+  duration: 2000
+
+subtitles:                          # optional, defaults shown
+  burn: false                       # draw the SRT into the picture
+  fontSize: 10                      # ASS script units, not pixels
+  marginV: 22                       # distance from the bottom edge
+
+music:                              # optional background bed
+  path: assets/bed.mp3              # relative to the playbook
+  volume: 0.12                      # above ~0.2 it competes with the voice
+  fadeOutMs: 2500
+
 titleCard:                          # optional, adds a title frame
   title: "My Demo"
   subtitle: "Optional subtitle"     # optional

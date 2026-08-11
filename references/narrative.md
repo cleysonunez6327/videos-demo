@@ -115,6 +115,27 @@ clauses come out rushed and flat.
 **End on an instruction, not a summary.** The last segment should say
 what to do next, not restate what was shown.
 
+## Publishing to social platforms
+
+**Vertical.** Do not crop a 16:9 recording — it throws away most of the
+frame. Record vertically instead: set the viewport to `1080x1920` and the
+page renders its own responsive layout, so nothing is cut off and
+everything stays readable. The same selectors keep working as long as the
+site does not switch to a mobile nav at that width.
+
+**Burned-in captions.** Most feeds autoplay muted, so a demo without
+visible text is a silent movie. `subtitles.burn: true` draws the SRT into
+the picture. It forces a video re-encode, so keep it off while iterating
+and turn it on for the final render.
+
+**Music.** A bed at `volume: 0.10`–`0.15` fills the silence between
+narration without competing with it. Above roughly 0.2 it starts to fight
+the voice.
+
+**End card.** The last thing on screen should be what to do next. An
+`endCard` with the product name and a call to action costs two seconds
+and is the only frame a paused video leaves behind.
+
 ## Checklist before rendering
 
 - [ ] Does the first segment state a problem or show a result, rather than defining the product?
