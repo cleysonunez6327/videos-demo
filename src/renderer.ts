@@ -10,6 +10,8 @@ import { ensureAudio } from "./tts.js";
 import { mergeAudioVideo } from "./merger.js";
 import { generateSrt } from "./subtitles.js";
 import { zoomExtensionArgs, setBrowserZoom } from "./zoom.js";
+import type { Page } from "playwright";
+import type { TitleCard } from "./schema.js";
 
 function escapeHtml(text: string): string {
   return text
@@ -17,6 +19,62 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/**
+ * Show a full-screen card and hold it. Used for both the opening and the
+ * closing card, which share a shape.
+ *
+ * The card is a data: URL, where the zoom extension's content script does
+ * not run — so every size here is in viewport units. Absolute sizes would
+ * render against the full scaled viewport (3840px at scale 2) and come out
+ * unreadably small.
+ */
+async function showCard(
+  page: Page,
+  card: TitleCard,
+  colorScheme: "light" | "dark"
+): Promise<void> {
+  const isDark = colorScheme === "dark";
+  const bg = isDark ? "#1a1a2e" : "#f5f5f5";
+  const fg = isDark ? "#e0e0e0" : "#1a1a1a";
+  const muted = isDark ? "#a0a0b0" : "#666666";
+
+  const body = card.stat
+    ? `  <div class="stat-value">${escapeHtml(card.stat.value)}</div>
+  <div class="stat-label">${escapeHtml(card.stat.label)}</div>
+  <div class="stat-attribution">${escapeHtml(card.title)}${
+        card.subtitle ? ` · ${escapeHtml(card.subtitle)}` : ""
+      }</div>`
+    : `  <h1>${escapeHtml(card.title)}</h1>
+  ${card.subtitle ? `<p>${escapeHtml(card.subtitle)}</p>` : ""}`;
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 100vw; height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: ${bg}; color: ${fg};
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  h1 { font-size: 4.2vw; font-weight: 700; text-align: center; line-height: 1.2; }
+  p  { font-size: 1.9vw; font-weight: 400; margin-top: 1.2vw; color: ${muted}; text-align: center; }
+
+  /* Stat card: the number carries the frame and the name is attribution
+     underneath, so the result registers before anyone reads the brand. */
+  .stat-value { font-size: 11vw; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  .stat-label { font-size: 2.4vw; font-weight: 500; margin-top: 1vw; color: ${muted}; text-align: center; }
+  .stat-attribution { font-size: 1.5vw; font-weight: 400; margin-top: 3vw; color: ${muted}; text-align: center; }
+</style></head><body>
+${body}
+</body></html>`;
+
+  await page.goto(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`, {
+    waitUntil: "load",
+  });
+  await new Promise(r => setTimeout(r, card.duration));
 }
 
 async function render(
@@ -157,50 +215,9 @@ async function render(
   const preSegmentStart = Date.now();
 
   // Title card
-  let titleCardDurationMs = 0;
   if (playbook.titleCard) {
-    const tc = playbook.titleCard;
-    titleCardDurationMs = tc.duration;
-    const isDark = playbook.app.colorScheme === "dark";
-    const bg = isDark ? "#1a1a2e" : "#f5f5f5";
-    const fg = isDark ? "#e0e0e0" : "#1a1a1a";
-    const subtitleColor = isDark ? "#a0a0b0" : "#666666";
-
-    const titleHtml = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    width: 100vw; height: 100vh;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    background: ${bg}; color: ${fg};
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  /* Viewport units, not rem: the title card is a data: URL, where the zoom
-     extension's content script does not run. Absolute sizes would render
-     against the full scaled viewport (e.g. 3840px) and come out tiny. */
-  h1 { font-size: 4.2vw; font-weight: 700; text-align: center; line-height: 1.2; }
-  p  { font-size: 1.9vw; font-weight: 400; margin-top: 1.2vw; color: ${subtitleColor}; text-align: center; }
-
-  /* Stat card: the number carries the frame and the name is attribution
-     underneath, so the result registers before anyone reads the brand. */
-  .stat-value { font-size: 11vw; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
-  .stat-label { font-size: 2.4vw; font-weight: 500; margin-top: 1vw; color: ${subtitleColor}; text-align: center; }
-  .stat-attribution { font-size: 1.5vw; font-weight: 400; margin-top: 3vw; color: ${subtitleColor}; text-align: center; }
-</style></head><body>
-${tc.stat
-  ? `  <div class="stat-value">${escapeHtml(tc.stat.value)}</div>
-  <div class="stat-label">${escapeHtml(tc.stat.label)}</div>
-  <div class="stat-attribution">${escapeHtml(tc.title)}${
-      tc.subtitle ? ` · ${escapeHtml(tc.subtitle)}` : ""
-    }</div>`
-  : `  <h1>${escapeHtml(tc.title)}</h1>
-  ${tc.subtitle ? `<p>${escapeHtml(tc.subtitle)}</p>` : ""}`}
-</body></html>`;
-
     console.log("  Recording title card...");
-    await page.goto(`data:text/html;charset=utf-8,${encodeURIComponent(titleHtml)}`, { waitUntil: "load" });
-    await new Promise(r => setTimeout(r, titleCardDurationMs));
+    await showCard(page, playbook.titleCard, playbook.app.colorScheme);
   }
 
   // Navigate to the app for segment recording
@@ -244,6 +261,16 @@ ${tc.stat
     console.log(` ${(result.durationMs / 1000).toFixed(1)}s`);
   }
 
+  // End card, still inside the screencast so it lands in the video. Its
+  // duration is tracked separately: the merger owes it matching silence.
+  let postSegmentDurationMs = 0;
+  if (playbook.endCard) {
+    console.log("  Recording end card...");
+    const endCardStart = Date.now();
+    await showCard(page, playbook.endCard, playbook.app.colorScheme);
+    postSegmentDurationMs = Date.now() - endCardStart;
+  }
+
   // Stop the screencast, then let any frame already in flight land before
   // detaching. Frame writes are synchronous, so the only thing to wait for
   // is delivery of events the browser has already sent.
@@ -270,7 +297,9 @@ ${tc.stat
   // The expected total duration lets us hold the last frame long enough to
   // cover static segments where the screencast sends no new frames.
   const expectedTotalSec =
-    (preSegmentDurationMs + segmentTimings.reduce((s, t) => s + t.durationMs, 0)) / 1000;
+    (preSegmentDurationMs +
+      segmentTimings.reduce((s, t) => s + t.durationMs, 0) +
+      postSegmentDurationMs) / 1000;
 
   const concatFilePath = path.join(framesDir, "frames.txt");
   let concatContent = "";
@@ -327,20 +356,8 @@ ${tc.stat
     };
   });
 
-  await mergeAudioVideo({
-    videoPath,
-    segments: renderedSegments,
-    outputPath: finalOutput,
-    outputDir,
-    preSegmentDurationMs,
-  });
-
-  // Clean up intermediate video
-  if (videoPath !== finalOutput) {
-    try { fs.unlinkSync(videoPath); } catch {}
-  }
-
-  // Generate SRT subtitles
+  // Subtitles are written before the merge, not after: burning them in is a
+  // video filter, so the file has to exist by the time ffmpeg runs.
   const srtPath = finalOutput.replace(/\.mp4$/, ".srt");
   const srtContent = generateSrt(
     renderedSegments.map(s => ({
@@ -352,10 +369,52 @@ ${tc.stat
   );
   fs.writeFileSync(srtPath, srtContent);
 
+  const music = playbook.music
+    ? {
+        // Resolved against the playbook, so a playbook stays portable.
+        path: path.resolve(playbookDir, playbook.music.path),
+        volume: playbook.music.volume,
+        fadeOutMs: playbook.music.fadeOutMs,
+      }
+    : undefined;
+
+  if (music && !fs.existsSync(music.path)) {
+    throw new Error(`Music file not found: ${music.path}`);
+  }
+  if (playbook.subtitles.burn) console.log("  Burning subtitles (re-encoding)...");
+  if (music) console.log("  Mixing background music...");
+
+  await mergeAudioVideo({
+    videoPath,
+    segments: renderedSegments,
+    outputPath: finalOutput,
+    outputDir,
+    preSegmentDurationMs,
+    postSegmentDurationMs,
+    burn: playbook.subtitles.burn
+      ? {
+          srtPath,
+          fontSize: playbook.subtitles.fontSize,
+          primaryColour: playbook.subtitles.primaryColour,
+          outlineColour: playbook.subtitles.outlineColour,
+          marginV: playbook.subtitles.marginV,
+        }
+      : undefined,
+    music,
+  });
+
+  // Clean up intermediate video
+  if (videoPath !== finalOutput) {
+    try { fs.unlinkSync(videoPath); } catch {}
+  }
+
   // Summary
   const stats = fs.statSync(finalOutput);
   const sizeMb = (stats.size / (1024 * 1024)).toFixed(1);
-  const totalDuration = preSegmentDurationMs + segmentTimings.reduce((s, t) => s + t.durationMs, 0);
+  const totalDuration =
+    preSegmentDurationMs +
+    segmentTimings.reduce((s, t) => s + t.durationMs, 0) +
+    postSegmentDurationMs;
   const minutes = Math.floor(totalDuration / 60000);
   const seconds = Math.round((totalDuration % 60000) / 1000);
 

@@ -155,8 +155,42 @@ const TitleCardSchema = z.object({
 
 // ─── Playbook ────────────────────────────────────────
 
+// ─── Post-production ─────────────────────────────────
+
+/**
+ * Burned-in subtitle styling.
+ *
+ * `fontSize` and `marginV` are ASS script units, not pixels. ffmpeg renders
+ * SubRip on a 384x288 canvas and scales it to the frame, so these values are
+ * resolution-independent — the same numbers look the same at 1080p and 4K —
+ * but they are roughly a ninth of the pixel size they end up drawing at 4K.
+ * The defaults were calibrated visually against a rendered demo.
+ */
+const SubtitlesSchema = z.object({
+  /** Burn the subtitles into the picture. Costs a video re-encode. */
+  burn: z.boolean().default(false),
+  fontSize: z.number().int().positive().default(10),
+  /** &HBBGGRR — ASS colour order, not RGB. */
+  primaryColour: z.string().default("&HFFFFFF"),
+  outlineColour: z.string().default("&H000000"),
+  /** Distance from the bottom edge. Around 22 clears the frame edge. */
+  marginV: z.number().int().nonnegative().default(22),
+}).default({});
+
+const MusicSchema = z.object({
+  /** Audio file, resolved relative to the playbook directory. */
+  path: z.string().min(1),
+  /** Bed level under the narration. Above ~0.2 it starts to compete. */
+  volume: z.number().positive().max(1).default(0.12),
+  fadeOutMs: z.number().int().nonnegative().default(2500),
+});
+
 const PlaybookSchema = z.object({
   titleCard: TitleCardSchema.optional(),
+  /** Closing card, same shape as the title card. Good place for the call to action. */
+  endCard: TitleCardSchema.optional(),
+  subtitles: SubtitlesSchema,
+  music: MusicSchema.optional(),
   app: z.object({
     url: z.string().url(),
     viewport: z.object({
@@ -183,6 +217,7 @@ const PlaybookSchema = z.object({
 
 type Playbook = z.infer<typeof PlaybookSchema>;
 type TtsConfig = z.infer<typeof TtsSchema>;
+type TitleCard = z.infer<typeof TitleCardSchema>;
 type Segment = z.infer<typeof SegmentSchema>;
 type Action = z.infer<typeof ActionSchema>;
 type Target = z.infer<typeof TargetSchema>;
@@ -198,5 +233,5 @@ export {
 };
 export type {
   Playbook, Segment, Action, Target, DoneCondition,
-  Condition, SetupStep, TtsConfig,
+  Condition, SetupStep, TtsConfig, TitleCard,
 };
