@@ -70,8 +70,14 @@ demo/
     demo.mp4           ← final output (auto)
 ```
 
-**Before writing the playbook**, think about what state the app
-needs to be in for the demo to work reliably and repeatably:
+**Before writing the playbook**, read `references/narrative.md`. It
+covers which segment order holds attention and how to write narration
+that adds to the screen instead of describing it. Structure is decided
+in the playbook, and changing it after a render means regenerating every
+narration.
+
+Then think about what state the app needs to be in for the demo to work
+reliably and repeatably:
 
 - Does the user need to be logged in? → add conditional login steps
 - Does the demo modify files/data that need restoring? → copy
