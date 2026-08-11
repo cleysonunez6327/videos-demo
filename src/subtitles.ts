@@ -7,11 +7,15 @@ interface SubtitleSegment {
 const MAX_CUE_CHARS = 80;
 
 function formatSrtTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
+  // Round once, up front. Flooring the seconds and separately rounding the
+  // remainder lets 999.6ms become 0s + 1000ms — "00:00:00,1000", which is not
+  // a valid SRT timestamp. Cue boundaries are fractional, so this is reachable.
+  const total = Math.max(0, Math.round(ms));
+  const totalSeconds = Math.floor(total / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  const millis = Math.round(ms % 1000);
+  const millis = total % 1000;
   return (
     String(hours).padStart(2, "0") +
     ":" +
