@@ -17,6 +17,16 @@ Then install the Playwright browser if needed:
 cd ${CLAUDE_SKILL_DIR} && npx playwright install chromium
 ```
 
+TTS needs `LLM4AGENTS_API_KEY`. It can come from a real environment
+variable or from a `.env` file — ndemo looks in the current working
+directory first, then in `${CLAUDE_SKILL_DIR}`. A real environment
+variable always wins. If the key is missing, copy the template and
+tell the user to fill it in (never write a key yourself):
+
+```bash
+cp ${CLAUDE_SKILL_DIR}/.env.example ${CLAUDE_SKILL_DIR}/.env
+```
+
 Verify the setup:
 
 ```bash
@@ -121,9 +131,10 @@ titleCard:                               # optional title card (shown as first f
   duration: 3000                         # milliseconds to hold (default 3000)
 
 tts:                                   # optional TTS configuration
-  provider: openai                     # "openai" (default) or "elevenlabs"
-  voice: alloy                         # TTS voice name (default "alloy")
-  speed: 1.0                           # speech speed multiplier (default 1.0)
+  provider: llm4agents                 # "llm4agents" (only provider)
+  model: x-ai/grok-voice-tts-1.0       # TTS model (this is the default)
+  voice: sal                           # eve, ara, rex, sal or leo (default "sal")
+  speed: 1.0                           # speed multiplier, 0 < speed <= 4 (default 1.0)
 
 recording:                             # optional recording settings
   outputDir: "."                       # output directory relative to playbook (default ".")
@@ -248,7 +259,7 @@ ${CLAUDE_SKILL_DIR}/ndemo play /absolute/path/to/demo/my-demo/my-demo.yaml
 Watch the full sequence in the browser. Ask the user if it
 looks right.
 
-To review with TTS narration (requires OPENAI_API_KEY and ffplay):
+To review with TTS narration (requires LLM4AGENTS_API_KEY and ffplay):
 
 ```bash
 ${CLAUDE_SKILL_DIR}/ndemo play /absolute/path/to/demo/my-demo/my-demo.yaml --audio
@@ -362,4 +373,9 @@ Condition fields:
 - **Render fails**: An error screenshot is saved as
   `error-<segment-id>.png` in the output directory.
 - **TTS sounds wrong**: Edit narration text (punctuation affects
-  pacing), or change voice/speed in playbook tts settings.
+  pacing), or change voice/speed in playbook tts settings. Changing
+  any tts setting regenerates the audio automatically.
+- **TTS fails with HTTP 401/402**: Run `${CLAUDE_SKILL_DIR}/ndemo doctor`.
+  It verifies `LLM4AGENTS_API_KEY` against the API and prints the
+  account balance — TTS is billed per character, so an empty balance
+  fails the render.

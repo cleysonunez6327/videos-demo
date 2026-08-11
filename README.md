@@ -19,9 +19,20 @@ You: "Create a demo showing the new dashboard filters"
 
 ## Prerequisites
 
-- **Node.js 20+**
+- **Node.js 20.12+**
 - **ffmpeg** with libx264 and aac encoders (ffprobe ships with it)
-- **OPENAI_API_KEY** environment variable (for TTS narration)
+- **LLM4AGENTS_API_KEY** (for TTS narration) — register an agent at
+  [api.llm4agents.com](https://api.llm4agents.com/docs) to get a key
+
+Set the key either as a real environment variable or in a `.env` file:
+
+```bash
+cp .env.example .env   # then fill in the key
+```
+
+`ndemo` reads `.env` from the directory it is invoked in first, then from the
+skill's own directory. A real environment variable always wins over both.
+`.env` is gitignored — never commit it.
 - **Claude Code** with skills support
 
 ## Installation
@@ -182,9 +193,10 @@ titleCard:                          # optional, adds a title frame
   duration: 3000                    # milliseconds (default 3000)
 
 tts:                                # optional, defaults shown
-  provider: openai
-  voice: alloy
-  speed: 1.0
+  provider: llm4agents
+  model: x-ai/grok-voice-tts-1.0    # TTS model
+  voice: sal                        # eve, ara, rex, sal or leo
+  speed: 1.0                        # 0 < speed <= 4
 
 recording:                          # optional, defaults shown
   outputDir: .                      # relative to playbook directory
@@ -248,6 +260,17 @@ done:
     name: data-theme
     value: dark
 ```
+
+## Tests
+
+```bash
+npm test
+```
+
+Uses Node's built-in test runner — no test dependencies. Tests live next to
+the code they cover (`src/*.test.ts`) and run against the compiled output.
+They focus on the pure, easy-to-break parts: subtitle timing, playbook
+round-tripping, gallery path resolution, and schema validation.
 
 ## Architecture
 
