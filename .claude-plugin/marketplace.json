@@ -1,0 +1,20 @@
+{
+  "name": "videos-demo",
+  "owner": {
+    "name": "Cleyson Nuñez",
+    "url": "https://github.com/cleysonunez6327"
+  },
+  "metadata": {
+    "description": "Narrated demo videos of web apps, driven by Claude Code",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "ndemo",
+      "source": "./",
+      "description": "Record narrated demo videos of a web application by driving a real browser. Text-to-speech through llm4agents, burned-in subtitles, background music, title and end cards.",
+      "category": "productivity",
+      "tags": ["demo-video", "screencast", "playwright", "text-to-speech", "ffmpeg"]
+    }
+  ]
+}

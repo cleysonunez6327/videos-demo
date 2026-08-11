@@ -49,40 +49,40 @@ skill's own directory. A real environment variable always wins over both.
 
 ## Installation
 
-### As a remote skill
+Install it as a Claude Code plugin — the repository is its own marketplace:
 
-Add this repo as a skill in your project's `.claude/settings.json`:
-
-```json
-{
-  "skills": [
-    "https://github.com/cleysonunez6327/videos-demo"
-  ]
-}
+```
+/plugin marketplace add cleysonunez6327/videos-demo
+/plugin install ndemo@videos-demo
 ```
 
-### As a local skill
+That is the whole install. The first time you ask for a demo, the skill
+builds the toolkit and installs the Playwright browser on its own.
 
-Clone directly into a Claude Code skills directory:
+### From a local clone
+
+Useful while developing the toolkit itself — changes apply without
+reinstalling:
 
 ```bash
-# Project-level (this project only)
-git clone https://github.com/cleysonunez6327/videos-demo .claude/skills/ndemo
-
-# Personal (available in all projects)
-git clone https://github.com/cleysonunez6327/videos-demo ~/.claude/skills/ndemo
+git clone https://github.com/cleysonunez6327/videos-demo
 ```
 
-This is useful during development — you can edit the skill files and
-the CLI source directly, and Claude Code picks up changes immediately.
-
-You can also symlink an existing clone:
-
-```bash
-ln -s /path/to/your/ndemo ~/.claude/skills/ndemo
+```
+/plugin marketplace add ./videos-demo
+/plugin install ndemo@videos-demo
 ```
 
-Either way, the skill file tells Claude Code how to build the toolkit and install Playwright on first use. Everything runs from within the skill's own directory — nothing gets copied into your project.
+### Layout
+
+```
+.claude-plugin/plugin.json   ← plugin manifest
+.claude-plugin/marketplace.json
+skills/ndemo/SKILL.md        ← the workflow Claude Code follows
+skills/ndemo/references/     ← narrative guidance
+ndemo                        ← the CLI, at the plugin root
+src/                         ← toolkit source
+```
 
 ## Quick start
 

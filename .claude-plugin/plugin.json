@@ -1,0 +1,21 @@
+{
+  "name": "ndemo",
+  "description": "Record narrated demo videos of a web application by driving a real browser. Claude Code writes the playbook, authors the actions by reading the page, and renders an mp4 with TTS narration, subtitles, music and title cards.",
+  "version": "0.2.0",
+  "author": {
+    "name": "Andreas Gohr",
+    "url": "https://github.com/splitbrain"
+  },
+  "homepage": "https://github.com/cleysonunez6327/videos-demo",
+  "repository": "https://github.com/cleysonunez6327/videos-demo",
+  "license": "MIT",
+  "keywords": [
+    "demo-video",
+    "screencast",
+    "playwright",
+    "text-to-speech",
+    "ffmpeg",
+    "video",
+    "claude-code"
+  ]
+}
