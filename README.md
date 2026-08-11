@@ -1,5 +1,17 @@
 # ndemo
 
+> **About this repository.** This is a fork of
+> [splitbrain/ndemo](https://github.com/splitbrain/ndemo) by Andreas Gohr,
+> who wrote the toolkit and holds its copyright. It is hosted here as
+> `videos-demo`, but the tool itself is still called `ndemo` — that is the
+> name the CLI, the skill file and every command use, and keeping it makes
+> pulling upstream changes straightforward.
+>
+> What this fork adds: text-to-speech through
+> [llm4agents](https://api.llm4agents.com/docs) instead of OpenAI, `.env`
+> support, a test suite, stricter TypeScript settings, and fixes for
+> subtitle timing and playbook round-tripping.
+
 A CLI toolkit and [Claude Code skill](https://docs.anthropic.com/en/docs/claude-code/skills) for creating narrated demo videos of web applications. You describe what to show, Claude Code drives the browser, and the toolkit renders a polished mp4 with voiceover.
 
 Claude Code is the agent. The toolkit provides browser management, page inspection, segment playback, and video rendering as CLI commands. The skill file (`SKILL.md`) teaches Claude Code how to use them.
@@ -23,6 +35,7 @@ You: "Create a demo showing the new dashboard filters"
 - **ffmpeg** with libx264 and aac encoders (ffprobe ships with it)
 - **LLM4AGENTS_API_KEY** (for TTS narration) — register an agent at
   [api.llm4agents.com](https://api.llm4agents.com/docs) to get a key
+- **Claude Code** with skills support
 
 Set the key either as a real environment variable or in a `.env` file:
 
@@ -33,7 +46,6 @@ cp .env.example .env   # then fill in the key
 `ndemo` reads `.env` from the directory it is invoked in first, then from the
 skill's own directory. A real environment variable always wins over both.
 `.env` is gitignored — never commit it.
-- **Claude Code** with skills support
 
 ## Installation
 
@@ -44,7 +56,7 @@ Add this repo as a skill in your project's `.claude/settings.json`:
 ```json
 {
   "skills": [
-    "https://github.com/splitbrain/ndemo"
+    "https://github.com/cleysonunez6327/videos-demo"
   ]
 }
 ```
@@ -55,10 +67,10 @@ Clone directly into a Claude Code skills directory:
 
 ```bash
 # Project-level (this project only)
-git clone https://github.com/splitbrain/ndemo .claude/skills/ndemo
+git clone https://github.com/cleysonunez6327/videos-demo .claude/skills/ndemo
 
 # Personal (available in all projects)
-git clone https://github.com/splitbrain/ndemo ~/.claude/skills/ndemo
+git clone https://github.com/cleysonunez6327/videos-demo ~/.claude/skills/ndemo
 ```
 
 This is useful during development — you can edit the skill files and
@@ -178,7 +190,7 @@ app:
     width: 1920
     height: 1080
   scale: 2                          # device scale factor
-  zoom: 1.25                        # CSS zoom
+  zoom: 1.25                        # real browser zoom
   colorScheme: light                # light or dark
   setup:                            # optional steps to run on load
     - run: cp fixtures/page.txt data/ # shell commands for file ops
