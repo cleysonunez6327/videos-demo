@@ -37,15 +37,20 @@ You: "Create a demo showing the new dashboard filters"
   [api.llm4agents.com](https://api.llm4agents.com/docs) to get a key
 - **Claude Code** with skills support
 
-Set the key either as a real environment variable or in a `.env` file:
+Set it in your shell profile:
 
 ```bash
-cp .env.example .env   # then fill in the key
+echo 'export LLM4AGENTS_API_KEY="your-key"' >> ~/.bashrc && source ~/.bashrc
 ```
 
-`ndemo` reads `.env` from the directory it is invoked in first, then from the
-skill's own directory. A real environment variable always wins over both.
-`.env` is gitignored — never commit it.
+An environment variable is the right place for it when ndemo is installed as
+a plugin: the plugin lives in Claude Code's cache, which is replaced when the
+plugin updates, so a key written inside it does not survive.
+
+ndemo also reads a `.env` file — from the directory it is invoked in first,
+then from its own — and a real environment variable wins over both. Use a
+project-level `.env` when the key differs per project or when you are working
+from a clone of this repository. `.env` is gitignored; never commit it.
 
 ## Installation
 

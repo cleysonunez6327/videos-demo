@@ -22,14 +22,29 @@ Then install the Playwright browser if needed:
 cd ${CLAUDE_PLUGIN_ROOT} && npx playwright install chromium
 ```
 
-TTS needs `LLM4AGENTS_API_KEY`. It can come from a real environment
-variable or from a `.env` file — ndemo looks in the current working
-directory first, then in `${CLAUDE_PLUGIN_ROOT}`. A real environment
-variable always wins. If the key is missing, copy the template and
-tell the user to fill it in (never write a key yourself):
+TTS needs `LLM4AGENTS_API_KEY`. **Never write a key yourself, and never
+read one back to the user** — ask them to set it and then verify with
+`doctor`.
+
+If it is missing, tell the user to export it from their shell profile:
 
 ```bash
-cp ${CLAUDE_PLUGIN_ROOT}/.env.example ${CLAUDE_PLUGIN_ROOT}/.env
+echo 'export LLM4AGENTS_API_KEY="their-key"' >> ~/.bashrc && source ~/.bashrc
+```
+
+Recommend that over a `.env` file when the plugin was installed from a
+marketplace: the plugin lives in Claude Code's cache, which is replaced
+when the plugin updates, so a key written there is lost on the next
+update. They get a key by registering an agent at
+https://api.llm4agents.com/docs.
+
+ndemo also reads `.env` — from the current working directory first, then
+from `${CLAUDE_PLUGIN_ROOT}` — and a real environment variable always
+wins over both. Prefer a project-level `.env` only when the key differs
+per project, or when working from a local clone of this repository:
+
+```bash
+cp ${CLAUDE_PLUGIN_ROOT}/.env.example ./.env    # then the user fills it in
 ```
 
 Verify the setup:
