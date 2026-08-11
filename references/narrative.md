@@ -130,7 +130,20 @@ and turn it on for the final render.
 
 **Music.** A bed at `volume: 0.10`–`0.15` fills the silence between
 narration without competing with it. Above roughly 0.2 it starts to fight
-the voice.
+the voice. Drone or ambient works best: no melody to argue with the
+narration, and any slice of it loops.
+
+Check the licence at its source, not from a metadata tag. Uploads tagged
+CC0 on public archives are routinely vinyl rips of commercial albums, with
+the tag applied by whoever uploaded the file rather than by the rights
+holder — using one in a marketing video invites a claim. Prefer releases
+published under Creative Commons by the label itself, and prefer CC0 over
+CC-BY so the video carries no attribution obligation.
+
+Verify the mix numerically rather than by eye: measure per-second levels
+with and without the bed. The narration should stay within a couple of dB
+of where it was, and the gaps between narration should rise well above
+silence. A single average over the whole track hides both failures.
 
 **End card.** The last thing on screen should be what to do next. An
 `endCard` with the product name and a call to action costs two seconds
