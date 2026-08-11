@@ -173,9 +173,21 @@ async function render(
      against the full scaled viewport (e.g. 3840px) and come out tiny. */
   h1 { font-size: 4.2vw; font-weight: 700; text-align: center; line-height: 1.2; }
   p  { font-size: 1.9vw; font-weight: 400; margin-top: 1.2vw; color: ${subtitleColor}; text-align: center; }
+
+  /* Stat card: the number carries the frame and the name is attribution
+     underneath, so the result registers before anyone reads the brand. */
+  .stat-value { font-size: 11vw; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  .stat-label { font-size: 2.4vw; font-weight: 500; margin-top: 1vw; color: ${subtitleColor}; text-align: center; }
+  .stat-attribution { font-size: 1.5vw; font-weight: 400; margin-top: 3vw; color: ${subtitleColor}; text-align: center; }
 </style></head><body>
-  <h1>${escapeHtml(tc.title)}</h1>
-  ${tc.subtitle ? `<p>${escapeHtml(tc.subtitle)}</p>` : ""}
+${tc.stat
+  ? `  <div class="stat-value">${escapeHtml(tc.stat.value)}</div>
+  <div class="stat-label">${escapeHtml(tc.stat.label)}</div>
+  <div class="stat-attribution">${escapeHtml(tc.title)}${
+      tc.subtitle ? ` · ${escapeHtml(tc.subtitle)}` : ""
+    }</div>`
+  : `  <h1>${escapeHtml(tc.title)}</h1>
+  ${tc.subtitle ? `<p>${escapeHtml(tc.subtitle)}</p>` : ""}`}
 </body></html>`;
 
     console.log("  Recording title card...");

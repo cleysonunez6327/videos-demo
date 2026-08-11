@@ -33,8 +33,12 @@ narration ramps up reads as a dead video. Give the first segment
 `timing: parallel` so its action runs while the narration plays, and put
 the scroll or click first in the list.
 
-Keep the title card short — around 1200ms. It exists so link previews
-have a frame to show, not to be watched.
+Keep the title card short — 600ms is enough. It exists so link previews
+have a frame to show, not to be watched. Budget for it: the card plus the
+navigation that follows it is dead air before the first segment, and the
+navigation alone costs around 700ms. At the 3000ms default the video is
+still static past the 3.5 second mark, which is the whole gate and half
+the confirmation window spent on a logo.
 
 ## Hook patterns that work with a real browser
 
@@ -54,6 +58,45 @@ finish in real time and say how long it took. The demo is the proof.
 
 **Side by side.** If the page has a comparison — old way against new way,
 competitor against product — hold on it. It does the persuading.
+
+## Leading with proof
+
+A demo does not have to be a tour. When there is a concrete result to
+show, the strongest order is **result, then method, then identity** — the
+opposite of how most product videos are built.
+
+**Open on the outcome.** Navigate straight to the finished state — the
+populated dashboard, the clean extracted data, the completed export — and
+only then go back and show how it was produced. The viewer spends the
+whole demo watching a process whose payoff they already want. This costs
+nothing to build: it is a `setup` step or a first segment that lands on
+the result page.
+
+**Open on a number.** If the product's value is quantitative, the title
+card can lead with it instead of the product name:
+
+```yaml
+titleCard:
+  stat:
+    value: "10x"
+    label: "menos tokens por página"
+  title: "AiCrawl.io"      # se muestra debajo, como atribución
+  duration: 900
+```
+
+The metric fills the frame and the name sits underneath, so the result
+registers before anyone reads the brand. Give a stat card a little more
+time than a plain one — a number needs to be read, not just seen.
+
+**Show the old way first.** If the product replaces a painful process,
+demonstrate the painful process. Real steps, real waiting, in real time.
+Then do the same job with the product. The comparison argues on its own
+and needs almost no narration.
+
+What does not transfer from testimonial video: faces, interviews, split
+screens and emotional close-ups. ndemo records a browser. A customer
+story here is told through what the screen does, with the customer's
+words as narration if you have them — not by filming anyone.
 
 ## Writing narration
 

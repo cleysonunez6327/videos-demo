@@ -202,7 +202,10 @@ app:
 titleCard:                          # optional, adds a title frame
   title: "My Demo"
   subtitle: "Optional subtitle"     # optional
-  duration: 3000                    # milliseconds (default 3000)
+  stat:                             # optional, leads with a metric instead
+    value: "10x"
+    label: "fewer tokens per page"
+  duration: 600                     # milliseconds (default 600)
 
 tts:                                # optional, defaults shown
   provider: llm4agents

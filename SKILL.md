@@ -102,7 +102,7 @@ app:
     width: 1920
     height: 1080
   scale: 2                           # device scale factor (default 2)
-  zoom: 1.25                         # CSS zoom level (default 1.25)
+  zoom: 1.25                         # real browser zoom (default 1.25)
   colorScheme: light                 # "light" or "dark" (default "light")
   setup:
     # Restore files modified during the demo
@@ -134,7 +134,10 @@ app:
 titleCard:                               # optional title card (shown as first frame)
   title: "Editing a Wiki Page"           # displayed prominently
   subtitle: "A quick tour of the editor" # optional subtitle
-  duration: 3000                         # milliseconds to hold (default 3000)
+  stat:                                  # optional: lead with a metric
+    value: "10x"                         # fills the frame
+    label: "menos tokens por pagina"     # sits under the number
+  duration: 600                          # milliseconds to hold (default 600)
 
 tts:                                   # optional TTS configuration
   provider: llm4agents                 # "llm4agents" (only provider)

@@ -135,10 +135,22 @@ const TtsSchema = z.object({
 
 // ─── Title Card ─────────────────────────────────────
 
+/**
+ * Opening card. Two shapes: a plain title, or a metric-forward "stat" card
+ * that leads with the result and puts the name underneath as attribution.
+ *
+ * The default hold is short on purpose. The card plus the navigation after
+ * it is dead air before the first segment, and that lands inside the window
+ * where most viewers decide whether to keep watching.
+ */
 const TitleCardSchema = z.object({
   title: z.string().min(1),
   subtitle: z.string().optional(),
-  duration: z.number().positive().default(3000),
+  stat: z.object({
+    value: z.string().min(1),
+    label: z.string().min(1),
+  }).optional(),
+  duration: z.number().positive().default(600),
 });
 
 // ─── Playbook ────────────────────────────────────────

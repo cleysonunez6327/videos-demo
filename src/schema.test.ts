@@ -98,6 +98,42 @@ describe("segments", () => {
   });
 });
 
+describe("titleCard", () => {
+  const withCard = (titleCard: unknown) =>
+    PlaybookSchema.safeParse({ ...base, titleCard });
+
+  test("holds for 600ms by default — the card is dead air before segment one", () => {
+    const result = withCard({ title: "Demo" });
+    assert.ok(result.success);
+    assert.equal(result.data.titleCard?.duration, 600);
+  });
+
+  test("accepts a plain title card without a stat", () => {
+    const result = withCard({ title: "Demo", subtitle: "Un subtítulo" });
+    assert.ok(result.success);
+    assert.equal(result.data.titleCard?.stat, undefined);
+  });
+
+  test("accepts a stat card leading with the metric", () => {
+    const result = withCard({
+      title: "AiCrawl.io",
+      stat: { value: "10x", label: "menos tokens por página" },
+    });
+    assert.ok(result.success);
+    assert.equal(result.data.titleCard?.stat?.value, "10x");
+  });
+
+  test("a stat needs both its value and its label", () => {
+    assert.ok(!withCard({ title: "X", stat: { value: "10x" } }).success);
+    assert.ok(!withCard({ title: "X", stat: { label: "algo" } }).success);
+    assert.ok(!withCard({ title: "X", stat: { value: "", label: "algo" } }).success);
+  });
+
+  test("still requires a title, since the stat card uses it as attribution", () => {
+    assert.ok(!withCard({ stat: { value: "10x", label: "algo" } }).success);
+  });
+});
+
 describe("preSegmentDuration", () => {
   test("is optional and defaults to absent", () => {
     const result = PlaybookSchema.safeParse(base);
