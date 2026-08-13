@@ -1,40 +1,49 @@
-# Worked example — Workflow Proof, route `illustrative`.
+# Worked example — Workflow Proof from the buyer's side, route `illustrative`.
 #
 # It lives here rather than under demo/ so it ships with the plugin; copy it
 # into your own demo/<name>/ directory and adapt. Every field below already
 # exists in the schema — a testimonial needs no code that a product demo
 # does not.
+#
+# Note what it records: the page the *customer* sees, not the vendor's
+# marketing site. Most payment, booking and sharing products expose a
+# public customer-facing URL that needs no login, which makes it the
+# cheapest honest surface to record. Replace the URL below with yours.
 
 prompt: >-
-  Testimonio en formato workflow-proof para AiCrawl. Persona ficticia,
-  ruta ilustrativa, revelada en la tarjeta inicial y en la final. Abre con
-  el resultado, muestra el problema en pantalla, y cierra en la salida
-  limpia que devuelve la API.
-
-# The metric leads; `title` is the attribution drawn under it, and the
-# disclosure rides in `subtitle` so a clip trimmed for a feed still carries it.
-titleCard:
-  stat:
-    value: "6 h"
-    label: "por semana, recuperadas"
-  title: "Lucía R. — Datos, Nordika"
-  subtitle: "Testimonio ilustrativo. Persona y datos ficticios."
-  duration: 1600
+  Caso ilustrativo en primera persona desde el lado del comprador: alguien
+  paga en una tienda escaneando el código de la pantalla del cajero. Persona
+  y compra ficticias, revelado en la tarjeta inicial y en la final. Se graba
+  la vista pública de pago en vertical, como se vería en un teléfono.
 
 app:
-  url: http://localhost:8080/
+  # A per-transaction page usually expires. Re-create it before re-rendering,
+  # or the recording opens on an expired screen.
+  url: https://shop.example.com/pay/ORDER_ID
+  # Vertical: this is what the buyer would be holding. The page renders its
+  # own responsive layout, so nothing is cropped.
   viewport:
-    width: 1920
-    height: 1080
+    width: 1080
+    height: 1920
   scale: 2
-  # 1.35, not the 1.25 a product demo uses: in a testimonial the detail is
-  # the proof, so the screen has to be readable at feed size.
-  zoom: 1.35
-  colorScheme: dark
+  # 1.0 leaves most of a vertical frame empty when the page centres a narrow
+  # card. Raise it until the content fills the height.
+  zoom: 1.5
+  colorScheme: light
+
+# The disclosure rides in `stat.label`, which is drawn large — not in
+# `subtitle`, which a stat card renders too small to read once the video is
+# scaled down to a feed.
+titleCard:
+  stat:
+    value: "0"
+    label: "datos entregados · recreación ficticia"
+  title: "Tu producto"
+  duration: 1800
 
 tts:
   voice: eve        # never `sal` — that is the product's voice
-  speed: 0.96       # just under 1.0 reads as a person
+  speed: 0.96
 
 subtitles:
   burn: true
@@ -44,51 +53,66 @@ recording:
   fps: 30
 
 segments:
-  # What it used to be. Past tense, specific, no product name yet.
-  - id: antes
+  # The scene, in one sentence. A live countdown or spinner on the page
+  # supplies the movement the first two seconds need.
+  - id: caja
     narration: >-
-      Antes escribía un scraper para cada sitio. Se rompían cada dos
-      semanas y me pasaba los lunes arreglándolos.
-    intent: "mostrar la sección que describe el problema del HTML sucio"
+      Estoy en la caja. El cajero gira la pantalla y me muestra un código.
+    intent: "abrir sobre el encabezado con el comercio y el monto"
     timing: parallel
     actions:
-      - type: scroll
-        target: { selector: "#value" }
-        done:
-          visible: "#value"
       - type: wait
         duration: 3000
 
-  # The moment. One action, visible consequence.
-  - id: el-momento
+  # The price in the currency the buyer actually thinks in.
+  - id: precio
     narration: >-
-      Ahora hago una llamada y me devuelve el contenido ya limpio.
-    intent: "ir al ejemplo de código desde el menú"
-    timing: parallel
-    actions:
-      - type: click
-        target: { selector: 'nav a[href="#code"]:not(.block)' }
-        done:
-          visible: "#code"
-      - type: wait
-        duration: 3000
-
-  # The proof. The result on screen, with the contrast in the voice.
-  - id: la-prueba
-    narration: >-
-      Esto es lo que recibe mi modelo. Markdown limpio, sin scripts ni
-      anuncios. Dejé de pagar tokens por basura.
-    intent: "aterrizar en el bloque de respuesta de la API"
+      Ochenta y nueve con noventa, en soles. Es el precio que vi en la
+      etiqueta, no una conversión que tengo que hacer yo.
+    intent: "bajar al monto a enviar"
     timing: parallel
     actions:
       - type: scroll
-        target: { role: heading, name: "Respuesta:" }
+        target: { text: "Amount to send" }
+        done:
+          stable: 600
       - type: wait
-        duration: 3500
+        duration: 2500
 
-# Commits to the result, not a generic call to action. Carries the
+  # The real argument from the customer's side is what they do NOT hand over.
+  - id: sin-datos
+    narration: >-
+      No creo una cuenta. No dejo mi correo. No doy el número de mi tarjeta.
+    intent: "sostener la vista sobre el aviso de checkout"
+    timing: parallel
+    actions:
+      - type: scroll
+        target: { text: "Secure checkout" }
+        done:
+          stable: 600
+      - type: wait
+        duration: 3000
+
+  # Stops at the gesture. Nobody is going to send the money for a recording,
+  # so the screen stays on "waiting" — and the narration must not claim
+  # otherwise. See "The narration may not outrun the screen" in SKILL.md.
+  - id: escaneo
+    narration: >-
+      Escaneo el código con mi billetera y confirmo. El pago va directo a la
+      tienda, sin nadie en el medio.
+    intent: "volver al código para cerrar donde empezó"
+    timing: parallel
+    actions:
+      - type: scroll
+        target: { text: "Show this QR" }
+        done:
+          stable: 600
+      - type: wait
+        duration: 3000
+
+# Commits to a result, not a generic call to action, and carries the
 # disclosure a second time.
 endCard:
-  title: "Seis horas por semana, de vuelta"
-  subtitle: "Testimonio ilustrativo. Persona y datos ficticios."
-  duration: 2600
+  title: "Pagar sin entregar tus datos"
+  subtitle: "Recreación ficticia · tu-producto.com"
+  duration: 2800

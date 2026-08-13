@@ -372,6 +372,24 @@ Condition fields:
 - `hidden: "<selector>"` — step runs only if selector matches no visible elements
 - `url: "<pattern>"` — step runs only if current URL matches (`**` = any path)
 
+**Guard a login on something only the login page has.** A generic
+`input[type="password"]` looks like the obvious signal and is a trap: any
+settings screen with an API secret, a token or a "change password" field
+matches it too, and the setup then tries to fill a username box that is not
+there. Guard on the submit button's own name instead — `button:has-text("Sign
+in")` — which no other page carries.
+
+**Log in before the recording starts, not during it.** Credentials belong in
+`setup`, which runs ahead of the first frame, so the typing never reaches the
+video. Keep the playbook itself in a directory that is gitignored: the
+password sits in it as plain text.
+
+**Landing straight on a deep page.** Most apps accept a redirect parameter on
+the sign-in URL — `/sign-in?redirect=%2Fsome%2Fdeep%2Fpage`. Point `app.url`
+at that and the demo opens exactly where the story starts, with the login
+already behind it. Give its `done` a generous timeout; a cold sign-in can
+take a while, and the failure otherwise looks like a broken selector.
+
 ## Action Types Reference
 
 | Type   | Required fields | Notes |
@@ -383,6 +401,17 @@ Condition fields:
 | wait   | duration (ms)  | Pause for the viewer (default 1000ms) |
 | press  | key            | Keyboard key, e.g. "Enter", "Escape" |
 | select | target, option | Dropdown selection |
+
+There is **no file-upload action**. A flow that requires picking a file
+cannot be recorded past that step — check for one before promising a demo
+of an import, a bulk upload or a CSV-driven feature.
+
+**A native `<select>` does not open on camera.** The dropdown list is drawn
+by the operating system, not the page, so it never reaches the recording —
+a segment built around "open the menu to show the options" records as a
+motionless frame. To show breadth, run several `select` actions in sequence
+instead: the closed control's value changes on screen, and any dependent
+field updates with it.
 
 ## Segment ID Rules
 

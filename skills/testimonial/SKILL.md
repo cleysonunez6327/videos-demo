@@ -68,10 +68,27 @@ testimonial, *Workflow Proof* is usually right.
 before/after, not a feature list. Ask: what did this person do on a Monday
 morning that they no longer do? That is the video.
 
+**Record the surface the customer actually touches.** Not the marketing
+site. If the story is told by a buyer, find the buyer-facing page — the
+public checkout, the shared link, the client portal — and record that; many
+products have one that needs no login at all. A first-person narration
+running over the vendor's own landing page is the failure mode this format
+falls into most often, and a viewer spots it within seconds: the voice
+claims to be using the product while the screen shows a brochure.
+
 **4. Write the narration in the first person.** Past tense for the pain,
 present for the relief. Be specific — "three CSVs every Monday" lands,
 "improved my workflow" does not. Never write marketing register into a
 customer's mouth; if it sounds like an ad, it performs like one.
+
+**The narration may not outrun the screen.** Write only what the recording
+will actually show. The temptation appears wherever the last step costs real
+money or real consequences — a payment nobody is going to send, an email
+nobody is going to receive, an order nobody is going to place. The screen
+stops at "waiting"; if the voice says "and it's paid", the subtitle is
+contradicting the picture underneath it, and that is the same defect as
+narrating over a landing page. End on the gesture instead — *"I scan the code
+and confirm"* — which is true, and let the interface speak for the rest.
 
 **5. Author the actions with `ndemo`.** Same loop as any other playbook:
 open the browser, read `page-state`, write actions, test each segment.
@@ -95,6 +112,32 @@ music:
 subtitles:
   burn: true          # feeds autoplay muted, and a testimonial is words
 ```
+
+**Shoot vertical when the customer is on a phone.** If the story happens at
+a counter, in a queue or anywhere the person is holding a device, set the
+viewport to `1080x1920`. The page renders its own responsive layout, so
+nothing is cropped, and the frame itself says "this is what I saw on my
+phone" before the narration has to. Raise `zoom` until the content fills the
+height — a page that centres a narrow card leaves most of a vertical frame
+empty at `zoom: 1.0`.
+
+## Where the disclosure goes
+
+On the illustrative route the disclosure is only worth having if it can be
+read. `titleCard` renders it two different ways, and the difference matters:
+
+- With a `stat`, the `title` and `subtitle` are drawn together on one small
+  grey line under the number. A disclosure placed there is unreadable once
+  the video is scaled to a feed.
+- The `stat.label` — and, on a card with no `stat`, the `title` — is drawn
+  large. That is where the disclosure belongs.
+
+Either fold it into the label (`"data given · illustrative recreation"`) and
+keep the number as the hook, or drop the `stat` and make the disclosure the
+title outright. The second reads better at small sizes; the first keeps the
+hook. Decide with the target in mind, then **check it by scaling a frame to
+360p and looking at it** — not by reading it at full resolution, where
+everything is legible.
 
 ## Limits to state up front
 
