@@ -9,12 +9,13 @@
 >
 > What this fork adds: text-to-speech through
 > [llm4agents](https://api.llm4agents.com/docs) instead of OpenAI, `.env`
-> support, a test suite, stricter TypeScript settings, and fixes for
-> subtitle timing and playbook round-tripping.
+> support, a test suite, stricter TypeScript settings, a second skill for
+> customer testimonials, and fixes for subtitle timing and playbook
+> round-tripping.
 
-A CLI toolkit and [Claude Code skill](https://docs.anthropic.com/en/docs/claude-code/skills) for creating narrated demo videos of web applications. You describe what to show, Claude Code drives the browser, and the toolkit renders a polished mp4 with voiceover.
+A CLI toolkit and a pair of [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) for creating narrated demo videos of web applications. You describe what to show, Claude Code drives the browser, and the toolkit renders a polished mp4 with voiceover.
 
-Claude Code is the agent. The toolkit provides browser management, page inspection, segment playback, and video rendering as CLI commands. The skill file (`SKILL.md`) teaches Claude Code how to use them.
+Claude Code is the agent. The toolkit provides browser management, page inspection, segment playback, and video rendering as CLI commands. The skill files teach Claude Code how to use them.
 
 ## How it works
 
@@ -61,8 +62,9 @@ Install it as a Claude Code plugin — the repository is its own marketplace:
 /plugin install ndemo@videos-demo
 ```
 
-That is the whole install. The first time you ask for a demo, the skill
-builds the toolkit and installs the Playwright browser on its own.
+That is the whole install — both skills ship with the plugin. The first
+time you ask for a demo, the `ndemo` skill builds the toolkit and installs
+the Playwright browser on its own.
 
 ### From a local clone
 
@@ -81,13 +83,41 @@ git clone https://github.com/cleysonunez6327/videos-demo
 ### Layout
 
 ```
-.claude-plugin/plugin.json   ← plugin manifest
+.claude-plugin/plugin.json     ← plugin manifest
 .claude-plugin/marketplace.json
-skills/ndemo/SKILL.md        ← the workflow Claude Code follows
-skills/ndemo/references/     ← narrative guidance
-ndemo                        ← the CLI, at the plugin root
-src/                         ← toolkit source
+skills/ndemo/SKILL.md          ← the workflow Claude Code follows
+skills/ndemo/references/       ← narrative guidance
+skills/testimonial/SKILL.md    ← customer stories, told in their voice
+skills/testimonial/references/ ← provenance, formats, voice casting
+ndemo                          ← the CLI, at the plugin root
+src/                           ← toolkit source
 ```
+
+## The two skills
+
+Both trigger on video requests, so the line between them is what decides
+which one runs:
+
+| The video is told from… | Skill |
+|---|---|
+| the product's voice — features, capabilities, a tour | `ndemo` |
+| a customer's voice — first person, past tense | `testimonial` |
+
+"Show what our app does" is `ndemo`. "Show how a customer uses it" is
+`testimonial`.
+
+**`ndemo`** is the one that does the work: it opens the browser, reads the
+accessibility tree, authors the actions and renders the mp4. Its
+`references/narrative.md` covers segment order, the retention clock and how
+to write narration that adds to the screen instead of describing it.
+
+**`testimonial`** decides *what* is told and in what order, then delegates
+the execution to `ndemo`. It exists because a testimonial changes what the
+video may claim, not how it is recorded. It asks whose words the narration
+carries **before** any narration is written — the answer decides what the
+narration is allowed to say — and it documents the four formats a screen
+recorder can actually produce, since there is no camera and no face here,
+only a browser.
 
 ## Quick start
 
@@ -164,7 +194,7 @@ segments:
 
 ## CLI reference
 
-The skill file teaches Claude Code to run these commands automatically, but you can also run them directly:
+The `ndemo` skill teaches Claude Code to run these commands automatically, but you can also run them directly:
 
 ```bash
 <skill-directory>/ndemo <command>
@@ -311,7 +341,9 @@ round-tripping, gallery path resolution, and schema validation.
 
 ```
 Claude Code (the agent)
-  ├── reads SKILL.md (skill file) for workflow
+  ├── reads skills/ndemo/SKILL.md for the workflow
+  ├── reads skills/testimonial/SKILL.md when the story
+  │     is told in a customer's voice
   ├── reads the web app's source for context
   ├── edits playbook YAML
   └── runs ndemo CLI commands
@@ -323,7 +355,7 @@ Claude Code (the agent)
         └── close ─── kills browser daemon
 ```
 
-The toolkit deliberately avoids building its own agent loop, conversation manager, retry logic, or element discovery. Claude Code already does all of that — the skill file just teaches it the workflow.
+The toolkit deliberately avoids building its own agent loop, conversation manager, retry logic, or element discovery. Claude Code already does all of that — the skill files just teach it the workflow.
 
 ## License
 
