@@ -36,6 +36,9 @@ You: "Create a demo showing the new dashboard filters"
 - **ffmpeg** with libx264 and aac encoders (ffprobe ships with it)
 - **LLM4AGENTS_API_KEY** (for TTS narration) — register an agent at
   [api.llm4agents.com](https://api.llm4agents.com/docs) to get a key
+- **VOXCPM_BASE_URL** (optional) — where the VoxCPM2 lab lives. Defaults to
+  `https://voicelab.vocaltwin.io`; set it to a LAN or tailnet address to skip
+  the public route, which is faster and has no request ceiling
 - **Claude Code** with skills support
 
 Set it in your shell profile:
@@ -274,7 +277,7 @@ tts:
   language: Spanish
   format: mp3
   # style: "tono urgente"           # designs delivery, but forces mode: simple
-  # baseUrl: http://100.74.189.100:7862   # when MagicDNS does not resolve
+  # baseUrl: http://skywalker:7862  # overrides VOXCPM_BASE_URL for this playbook
 
 recording:                          # optional, defaults shown
   outputDir: .                      # relative to playbook directory

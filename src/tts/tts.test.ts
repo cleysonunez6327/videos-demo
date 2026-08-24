@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { ttsCacheKey } from "./cache.js";
 import { createVoxCpmRequest, calculateVoxCpmTimeout, TTS_CONFIG } from "./domain/voices.js";
+import { resolveBaseUrl, BASE_URL_ENV } from "./providers/voxcpm.js";
 import type { TTSRequest } from "./domain/voices.js";
 
 /** Minimal VoxCPM2 request; each test overrides only what it is about. */
@@ -116,5 +117,54 @@ describe("calculateVoxCpmTimeout", () => {
 
   test("grows with the text", () => {
     assert.ok(calculateVoxCpmTimeout(20_000) > calculateVoxCpmTimeout(100));
+  });
+});
+
+describe("resolveBaseUrl", () => {
+  /** Runs `fn` with the env var set to `value`, then restores it. */
+  function withEnv(value: string | undefined, fn: () => void): void {
+    const previous = process.env[BASE_URL_ENV];
+    if (value === undefined) delete process.env[BASE_URL_ENV];
+    else process.env[BASE_URL_ENV] = value;
+    try { fn(); } finally {
+      if (previous === undefined) delete process.env[BASE_URL_ENV];
+      else process.env[BASE_URL_ENV] = previous;
+    }
+  }
+
+  test("falls back to the public lab", () => {
+    withEnv(undefined, () => {
+      assert.equal(resolveBaseUrl(), TTS_CONFIG.voxcpm.baseUrl);
+    });
+  });
+
+  test("the environment moves a whole machine onto another host", () => {
+    withEnv("http://skywalker:7862", () => {
+      assert.equal(resolveBaseUrl(), "http://skywalker:7862");
+    });
+  });
+
+  test("an explicit host still wins over the environment", () => {
+    // A playbook that names a lab has to get that lab, or an export made for
+    // one demo would silently redirect every other one.
+    withEnv("http://skywalker:7862", () => {
+      assert.equal(resolveBaseUrl("http://100.74.189.100:7862"), "http://100.74.189.100:7862");
+    });
+  });
+
+  test("trailing slashes never double up in a request path", () => {
+    withEnv(undefined, () => {
+      assert.equal(resolveBaseUrl("https://voicelab.vocaltwin.io/"), "https://voicelab.vocaltwin.io");
+      assert.equal(resolveBaseUrl("https://voicelab.vocaltwin.io///"), "https://voicelab.vocaltwin.io");
+    });
+  });
+
+  test("blank values do not shadow the fallback", () => {
+    // An exported-but-empty variable is a common way to end up pointing at
+    // nothing; it should read as "unset", not as an empty host.
+    withEnv("   ", () => {
+      assert.equal(resolveBaseUrl(), TTS_CONFIG.voxcpm.baseUrl);
+      assert.equal(resolveBaseUrl("  "), TTS_CONFIG.voxcpm.baseUrl);
+    });
   });
 });

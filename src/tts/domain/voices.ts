@@ -26,9 +26,23 @@ export const TTS_CONFIG = {
     defaultSpeed: 1.0,
   },
 
-  // VoxCPM2 lab configuration (skywalker:7862)
+  // VoxCPM2 lab configuration
   voxcpm: {
-    baseUrl: 'http://skywalker:7862',
+    /**
+     * Public HTTPS front for the lab, over a Cloudflare Tunnel.
+     *
+     * The tailnet address (`http://skywalker:7862`) is faster and has no
+     * request ceiling, but it only resolves from inside the tailnet — and this
+     * repo is public, so it would be useless to anyone else. Point
+     * VOXCPM_BASE_URL at the tailnet host to get that route back.
+     *
+     * One caveat that only applies to this route: Cloudflare cuts proxied
+     * requests at about 100 s with a 524. The lab generates at roughly half of
+     * real time, so that ceiling sits near three minutes of audio per request
+     * — far beyond any single demo narration, but a limit that the tailnet
+     * route does not have.
+     */
+    baseUrl: 'https://voicelab.vocaltwin.io',
     healthEndpoint: '/api/health',
     voicesEndpoint: '/api/voices',
     ttsEndpoint: '/api/tts',

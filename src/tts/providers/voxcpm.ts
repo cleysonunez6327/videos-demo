@@ -103,6 +103,24 @@ async function readErrorDetail(response: Response): Promise<string> {
   return parsed.success ? parsed.data.detail : body.slice(0, 300) || response.statusText;
 }
 
+/** Environment variable that overrides where the VoxCPM2 lab lives. */
+export const BASE_URL_ENV = 'VOXCPM_BASE_URL';
+
+/**
+ * Where to reach the lab, most specific source first: what the playbook says,
+ * then the environment, then the public default.
+ *
+ * The environment sits in the middle so one export can move a whole machine
+ * onto the tailnet route without editing any playbook, while a playbook that
+ * names a host still gets it.
+ */
+export function resolveBaseUrl(explicit?: string): string {
+  const chosen = explicit?.trim()
+    || process.env[BASE_URL_ENV]?.trim()
+    || TTS_CONFIG.voxcpm.baseUrl;
+  return chosen.replace(/\/+$/, '');
+}
+
 // ─── VoxCPM2 Implementation ─────────────────────────────────
 
 /**
@@ -120,7 +138,7 @@ export class VoxCpmTTSClient implements VoxCpmPort {
   private readonly baseUrl: string;
 
   constructor(customBaseUrl?: string) {
-    this.baseUrl = (customBaseUrl ?? this.config.baseUrl).replace(/\/+$/, '');
+    this.baseUrl = resolveBaseUrl(customBaseUrl);
   }
 
   private url(endpoint: string): string {

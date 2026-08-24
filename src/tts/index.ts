@@ -91,7 +91,7 @@ export {
 
 // Provider implementations (for direct use if needed)
 export { Llm4AgentsTTSClient, createLlm4AgentsClient, API_KEY_ENV } from './providers/llm4agents.js';
-export { VoxCpmTTSClient, createVoxCpmClient } from './providers/voxcpm.js';
+export { VoxCpmTTSClient, createVoxCpmClient, resolveBaseUrl, BASE_URL_ENV } from './providers/voxcpm.js';
 
 // ─── Pipeline entry points ───────────────────────────────────
 

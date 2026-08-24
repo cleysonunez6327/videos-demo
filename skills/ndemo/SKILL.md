@@ -165,9 +165,10 @@ tts:                                   # optional TTS configuration
   voice: sal                           # eve, ara, rex, sal or leo (default "sal")
   speed: 1.0                           # speed multiplier, 0 < speed <= 4 (default 1.0)
 
-# VoxCPM2 alternative — cloned voices on the local lab (skywalker:7862).
-# Needs no API key and costs nothing per render, but only works from inside
-# the tailnet. Query GET http://skywalker:7862/api/voices for current slugs;
+# VoxCPM2 alternative — cloned voices, no API key and nothing to pay per
+# render. Reachable at https://voicelab.vocaltwin.io by default; export
+# VOXCPM_BASE_URL to use a tailnet or LAN address instead, which is faster
+# and has no request ceiling. Query GET <base>/api/voices for current slugs;
 # the catalogue changes whenever someone clones a voice, so never assume it.
 tts:
   provider: voxcpm
@@ -177,7 +178,7 @@ tts:
   language: Spanish                    # informational; the model reads the text
   format: mp3                          # mp3 (default) or wav
   # style: "tono de documental"        # forces mode: simple — see below
-  # baseUrl: http://100.74.189.100:7862
+  # baseUrl: http://skywalker:7862      # overrides VOXCPM_BASE_URL here
 
 # mode: ultimate conditions on the reference audio AND its transcript, which
 # is what carries the speaker's cadence. mode: simple uses audio only.
