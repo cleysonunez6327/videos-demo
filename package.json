@@ -1,6 +1,6 @@
 {
   "name": "ndemo",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Narrated demo video toolkit and Claude Code skill",
   "author": "Andreas Gohr <andi@splitbrain.org>",
   "license": "MIT",

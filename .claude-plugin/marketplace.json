@@ -6,15 +6,22 @@
   },
   "metadata": {
     "description": "Narrated demo videos of web apps, driven by Claude Code",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "ndemo",
       "source": "./",
-      "description": "Record narrated demo videos of a web application by driving a real browser. Text-to-speech through llm4agents, burned-in subtitles, background music, title and end cards.",
+      "description": "Record narrated demo videos of a web application by driving a real browser. Text-to-speech through llm4agents or a self-hosted VoxCPM2 lab, burned-in subtitles, background music, title and end cards.",
       "category": "productivity",
-      "tags": ["demo-video", "screencast", "playwright", "text-to-speech", "ffmpeg"]
+      "tags": [
+        "demo-video",
+        "screencast",
+        "playwright",
+        "text-to-speech",
+        "voice-cloning",
+        "ffmpeg"
+      ]
     }
   ]
 }
