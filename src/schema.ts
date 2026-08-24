@@ -111,27 +111,161 @@ const GROK_TTS_MODEL = "x-ai/grok-voice-tts-1.0";
 /** Voices supported by GROK_TTS_MODEL (case-insensitive upstream). */
 const GROK_TTS_VOICES = ["eve", "ara", "rex", "sal", "leo"] as const;
 
-const TtsSchema = z.object({
-  provider: z.enum(["llm4agents"]).default("llm4agents"),
+/**
+ * Cloning modes offered by the VoxCPM2 lab.
+ *
+ * `ultimate` conditions on the reference audio *and its transcript*, which is
+ * what carries the speaker's cadence rather than just the timbre. `simple`
+ * uses the audio alone — needed for voices with no archived transcript, and
+ * the only mode that can honour a `style` directive.
+ */
+const VOXCPM_MODES = ["ultimate", "simple"] as const;
+
+/** Languages accepted by VoxCPM2. Informational — it infers from the text. */
+const VOXCPM_LANGUAGES = ["Auto", "Spanish", "English", "Chinese", "Japanese", "Korean", "German", "French", "Russian", "Portuguese", "Italian"] as const;
+
+/** The lab refuses reference audio longer than this. */
+const VOXCPM_MAX_REF_SEC = 45;
+
+/**
+ * llm4agents-specific TTS configuration.
+ *
+ * Deliberately a plain object, not a refined one: `z.discriminatedUnion` only
+ * accepts ZodObject branches, and a discriminated union is what makes a bad
+ * `tts` block report the actual problem instead of a bare "Invalid input".
+ * The cross-field rules live in `refineTts` below.
+ */
+const Llm4AgentsTtsSchema = z.object({
+  provider: z.literal("llm4agents"),
   model: z.string().min(1).default(GROK_TTS_MODEL),
   voice: z.string().min(1).default("sal"),
   speed: z.number().positive().max(4).default(1.0),
-}).superRefine((tts, ctx) => {
-  // Voices are model-specific, so only validate the model we know about.
-  // Other models pass through and are validated by the API itself.
-  if (
-    tts.model === GROK_TTS_MODEL &&
-    !GROK_TTS_VOICES.includes(tts.voice.toLowerCase() as typeof GROK_TTS_VOICES[number])
-  ) {
+});
+
+/**
+ * VoxCPM2-specific TTS configuration.
+ *
+ * `voice` is a free string on purpose: voices are cloned from the lab UI and
+ * show up in the API immediately, so any enum baked in here would reject a
+ * voice that actually exists. The server validates the slug and lists the
+ * real ones through /api/voices.
+ */
+const VoxCpmTtsSchema = z.object({
+  provider: z.literal("voxcpm"),
+  /** Slug of an archived voice. Omit only when designing a voice via `style`. */
+  voice: z.string().min(1).optional(),
+  /** Left unset so the effective default can depend on `style` — see below. */
+  mode: z.enum(VOXCPM_MODES).optional(),
+  /** Voice description or delivery guide. Requires `simple`. */
+  style: z.string().min(1).optional(),
+  format: z.enum(["wav", "mp3"]).default("mp3"),
+  language: z.enum(VOXCPM_LANGUAGES).default("Spanish"),
+  /** Adherence to the conditioning. */
+  cfgValue: z.number().positive().default(2.0),
+  /** Diffusion steps. Higher is better and slower. */
+  inferenceTimesteps: z.number().int().positive().default(10),
+  /** Seconds of reference audio. 25-30 gives the model more cadence to copy. */
+  refMaxSec: z.number().positive().max(VOXCPM_MAX_REF_SEC).default(15),
+  /** Expand numbers and symbols before synthesis. */
+  normalize: z.boolean().default(false),
+  /** Clean the reference. Needs the service started with --denoiser. */
+  denoise: z.boolean().default(false),
+  /** Override the lab URL, e.g. the tailnet IP when MagicDNS does not resolve. */
+  baseUrl: z.string().url().optional(),
+});
+
+type VoxCpmMode = typeof VOXCPM_MODES[number];
+
+/** Either branch, as parsed — before the `mode` default is resolved. */
+type ParsedTts =
+  | z.infer<typeof Llm4AgentsTtsSchema>
+  | z.infer<typeof VoxCpmTtsSchema>;
+
+/**
+ * VoxCPM2 config once `mode` has been resolved. Required rather than optional,
+ * so callers never have to re-derive the default the schema already applied.
+ */
+type ResolvedVoxCpmTts =
+  Omit<z.infer<typeof VoxCpmTtsSchema>, "mode"> & { mode: VoxCpmMode };
+
+type ResolvedTts = z.infer<typeof Llm4AgentsTtsSchema> | ResolvedVoxCpmTts;
+
+/** Cross-field rules, applied after the branch is known. */
+function refineTts(tts: ParsedTts, ctx: z.RefinementCtx): void {
+  if (tts.provider === "llm4agents") {
+    // Voices are model-specific, so only validate the model we know about.
+    // Other models pass through and are validated by the API itself.
+    if (
+      tts.model === GROK_TTS_MODEL &&
+      !GROK_TTS_VOICES.includes(tts.voice.toLowerCase() as typeof GROK_TTS_VOICES[number])
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["voice"],
+        message:
+          `"${tts.voice}" is not a voice of ${GROK_TTS_MODEL}. ` +
+          `Use one of: ${GROK_TTS_VOICES.join(", ")}`,
+      });
+    }
+    return;
+  }
+
+  if (!tts.voice && !tts.style) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["voice"],
       message:
-        `"${tts.voice}" is not a voice of ${GROK_TTS_MODEL}. ` +
-        `Use one of: ${GROK_TTS_VOICES.join(", ")}`,
+        "VoxCPM2 needs either `voice` (clone an archived voice) or " +
+        "`style` (design a voice from a description).",
     });
   }
-});
+
+  // Under `ultimate` the model does audio continuation and treats the whole
+  // text as content, so it reads the style directive out loud and mangles the
+  // sentence. The lab silently downgrades to `simple`; rejecting here makes
+  // the trade-off explicit instead of surprising.
+  if (tts.style && tts.mode === "ultimate") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["style"],
+      message:
+        "`style` cannot be combined with `mode: ultimate` — the model would " +
+        "read the directive aloud. Use `mode: simple` for style control, or " +
+        "drop `style` to keep the speaker nuances of `ultimate`.",
+    });
+  }
+}
+
+/**
+ * Fill in the provider so a `tts` block can stay as terse as `{ voice: leo }`.
+ *
+ * A discriminated union needs the discriminant present before it can pick a
+ * branch, so the default cannot live on the field itself.
+ */
+function withDefaultProvider(raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return raw;
+  if ("provider" in raw) return raw;
+  return { provider: "llm4agents", ...raw };
+}
+
+/**
+ * TTS configuration.
+ *
+ * Discriminated on `provider` so an invalid block names the field that is
+ * wrong, rather than reporting that neither branch matched.
+ */
+const TtsSchema = z.preprocess(
+  withDefaultProvider,
+  z.discriminatedUnion("provider", [Llm4AgentsTtsSchema, VoxCpmTtsSchema])
+)
+  .superRefine(refineTts)
+  .transform((tts): ResolvedTts => {
+    if (tts.provider !== "voxcpm") return tts;
+    // Asking for a style implies `simple`; everything else defaults to the
+    // mode that actually carries the speaker's cadence.
+    return { ...tts, mode: tts.mode ?? (tts.style ? "simple" : "ultimate") };
+  })
+  .default({});
 
 // ─── Title Card ─────────────────────────────────────
 
@@ -175,6 +309,15 @@ const SubtitlesSchema = z.object({
   outlineColour: z.string().default("&H000000"),
   /** Distance from the bottom edge. Around 22 clears the frame edge. */
   marginV: z.number().int().nonnegative().default(22),
+  /**
+   * Draw the text on a translucent band instead of relying on an outline.
+   *
+   * An outline alone holds up over flat backgrounds and falls apart over a
+   * dense UI, where the caption lands on top of code or table text and both
+   * become hard to read. The band separates them and behaves the same on a
+   * light page as on a dark one.
+   */
+  box: z.boolean().default(true),
 }).default({});
 
 const MusicSchema = z.object({
@@ -209,7 +352,7 @@ const PlaybookSchema = z.object({
     colorScheme: z.enum(["light", "dark"]).default("light"),
     setup: z.array(SetupStepSchema).optional(),
   }),
-  tts: TtsSchema.default({}),
+  tts: TtsSchema,
   recording: z.object({
     outputDir: z.string().default("."),
     fps: z.number().int().positive().default(30),
@@ -224,6 +367,8 @@ const PlaybookSchema = z.object({
 
 type Playbook = z.infer<typeof PlaybookSchema>;
 type TtsConfig = z.infer<typeof TtsSchema>;
+type Llm4AgentsTtsConfig = z.infer<typeof Llm4AgentsTtsSchema>;
+type VoxCpmTtsConfig = ResolvedVoxCpmTts;
 type TitleCard = z.infer<typeof TitleCardSchema>;
 type Segment = z.infer<typeof SegmentSchema>;
 type Action = z.infer<typeof ActionSchema>;
@@ -237,8 +382,10 @@ export {
   TargetSchema, DoneConditionSchema, ConditionSchema,
   SetupStepSchema, TitleCardSchema, TtsSchema,
   GROK_TTS_MODEL, GROK_TTS_VOICES,
+  VOXCPM_MODES, VOXCPM_LANGUAGES, VOXCPM_MAX_REF_SEC,
 };
 export type {
   Playbook, Segment, Action, Target, DoneCondition,
   Condition, SetupStep, TtsConfig, TitleCard,
+  Llm4AgentsTtsConfig, VoxCpmTtsConfig,
 };

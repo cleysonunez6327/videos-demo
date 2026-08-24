@@ -15,6 +15,7 @@ interface BurnOptions {
   readonly primaryColour: string;
   readonly outlineColour: string;
   readonly marginV: number;
+  readonly box: boolean;
 }
 
 interface MusicOptions {
@@ -113,12 +114,20 @@ async function buildNarrationTrack(options: MergeOptions): Promise<string> {
   scratch.push(filelistPath);
 
   const combinedAudioPath = path.join(outputDir, "combined-audio.mp3");
+  // Re-encoded rather than stream-copied. The parts do not share a sample
+  // rate — the TTS lab returns 48 kHz and the generated silence is 44.1 —
+  // and a copy concat yields one file whose rate changes mid-stream. Every
+  // change makes ffmpeg rebuild the filter graph downstream, which resets
+  // loudnorm and feeds NaN to the encoder. Cheap: this track is seconds long.
   await execa("ffmpeg", [
     "-y",
     "-f", "concat",
     "-safe", "0",
     "-i", filelistPath,
-    "-c", "copy",
+    "-ar", "48000",
+    "-ac", "1",
+    "-c:a", "libmp3lame",
+    "-q:a", "2",
     combinedAudioPath,
   ]);
 
@@ -128,10 +137,77 @@ async function buildNarrationTrack(options: MergeOptions): Promise<string> {
   return combinedAudioPath;
 }
 
+/**
+ * Loudness target for the narration, EBU R128.
+ *
+ * Cloned voices arrive at whatever level their reference audio had: measured
+ * across two demos, `angie` peaked at -3.3 dBFS and `jeremy` at -9.3, so a
+ * viewer watching the series back to back had to reach for the volume between
+ * videos. Levelling here rather than per-voice keeps that fix in one place as
+ * the roster grows.
+ *
+ * -16 LUFS is the usual target for spoken word on the web, and -1.5 dBTP
+ * leaves headroom for the lossy encode that follows.
+ */
+/** Target and input conditioning shared by both loudnorm passes. */
+const LOUDNESS_TARGET = "I=-16:TP=-1.5:LRA=11";
+const NARRATION_FORMAT = "aresample=48000,aformat=channel_layouts=mono";
+
+interface LoudnessStats {
+  readonly input_i: string;
+  readonly input_tp: string;
+  readonly input_lra: string;
+  readonly input_thresh: string;
+  readonly target_offset: string;
+}
+
+/**
+ * Measure the narration so the second pass can hit the target exactly.
+ *
+ * One-pass loudnorm estimates as it goes and drifts on material with long
+ * gaps: measured across three demos it landed at -16.8, -16.9 and -18.3 LUFS,
+ * and that last one is audibly quieter in a run of videos. Measuring first
+ * costs one extra decode of a track that is seconds long.
+ *
+ * Returns null when the measurement cannot be parsed, in which case the caller
+ * falls back to the single pass — being 1.5 LU out beats failing the render.
+ */
+async function measureLoudness(audioPath: string): Promise<LoudnessStats | null> {
+  try {
+    const { stderr } = await execa("ffmpeg", [
+      "-i", audioPath,
+      "-af", `${NARRATION_FORMAT},loudnorm=${LOUDNESS_TARGET}:print_format=json`,
+      "-f", "null", "-",
+    ], { reject: false });
+
+    // ffmpeg writes the JSON block last, after its usual banner and progress.
+    const match = stderr.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    const parsed = JSON.parse(match[0]) as Partial<LoudnessStats>;
+    if (!parsed.input_i || !parsed.target_offset) return null;
+    return parsed as LoudnessStats;
+  } catch {
+    return null;
+  }
+}
+
+/** Filter chain that levels the narration, using measurements when available. */
+function narrationLoudnessFilter(stats: LoudnessStats | null): string {
+  const loudnorm = stats
+    ? `loudnorm=${LOUDNESS_TARGET}:measured_I=${stats.input_i}:` +
+      `measured_TP=${stats.input_tp}:measured_LRA=${stats.input_lra}:` +
+      `measured_thresh=${stats.input_thresh}:offset=${stats.target_offset}:linear=true`
+    : `loudnorm=${LOUDNESS_TARGET}`;
+  // The rate is pinned on both sides: loudnorm resamples to 192 kHz
+  // internally, and the encoder should not see that.
+  return `${NARRATION_FORMAT},${loudnorm},aresample=48000`;
+}
+
 async function mergeAudioVideo(options: MergeOptions): Promise<void> {
   const { videoPath, outputPath } = options;
 
   const narrationPath = await buildNarrationTrack(options);
+  const loudness = narrationLoudnessFilter(await measureLoudness(narrationPath));
   const totalMs =
     (options.preSegmentDurationMs ?? 0) +
     options.segments.reduce((sum, s) => sum + s.videoDurationMs, 0) +
@@ -151,15 +227,20 @@ async function mergeAudioVideo(options: MergeOptions): Promise<void> {
     const fadeStartSec = Math.max(0, (totalMs - options.music.fadeOutMs) / 1000);
     args.push(
       "-filter_complex",
-      `[2:a]atrim=0:${(totalMs / 1000).toFixed(3)},` +
+      `[1:a]${loudness}[voice];` +
+        `[2:a]atrim=0:${(totalMs / 1000).toFixed(3)},` +
         `volume=${options.music.volume},` +
         `afade=t=out:st=${fadeStartSec.toFixed(3)}:d=${(options.music.fadeOutMs / 1000).toFixed(3)}[bed];` +
-        `[1:a][bed]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]`,
+        `[voice][bed]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]`,
       "-map", "0:v",
       "-map", "[aout]"
     );
   } else {
-    args.push("-map", "0:v", "-map", "1:a");
+    args.push(
+      "-filter_complex", `[1:a]${loudness}[aout]`,
+      "-map", "0:v",
+      "-map", "[aout]"
+    );
   }
 
   if (options.burn) {
@@ -170,8 +251,10 @@ async function mergeAudioVideo(options: MergeOptions): Promise<void> {
       `subtitles='${escapeFilterPath(b.srtPath)}':force_style='` +
         `FontSize=${b.fontSize},` +
         `PrimaryColour=${b.primaryColour},` +
-        `OutlineColour=${b.outlineColour},` +
-        `BorderStyle=1,Outline=2,Shadow=0,` +
+        `OutlineColour=${b.box ? "&H80000000" : b.outlineColour},` +
+        // BorderStyle=3 fills a box with OutlineColour; Outline becomes its
+        // padding. The &H80 alpha keeps the picture readable through it.
+        `BorderStyle=${b.box ? 3 : 1},Outline=${b.box ? 4 : 2},Shadow=0,` +
         `Alignment=2,MarginV=${b.marginV}'`,
       "-c:v", "libx264",
       "-crf", "18",

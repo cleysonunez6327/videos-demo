@@ -160,10 +160,31 @@ titleCard:                               # optional title card (shown as first f
   duration: 600                          # milliseconds to hold (default 600)
 
 tts:                                   # optional TTS configuration
-  provider: llm4agents                 # "llm4agents" (only provider)
+  provider: llm4agents                 # "llm4agents" (default) or "voxcpm"
   model: x-ai/grok-voice-tts-1.0       # TTS model (this is the default)
   voice: sal                           # eve, ara, rex, sal or leo (default "sal")
   speed: 1.0                           # speed multiplier, 0 < speed <= 4 (default 1.0)
+
+# VoxCPM2 alternative — cloned voices, no API key and nothing to pay per
+# render. Reachable at https://voicelab.vocaltwin.io by default; export
+# VOXCPM_BASE_URL to use a tailnet or LAN address instead, which is faster
+# and has no request ceiling. Query GET <base>/api/voices for current slugs;
+# the catalogue changes whenever someone clones a voice, so never assume it.
+tts:
+  provider: voxcpm
+  voice: angie                         # required, unless designing one via style
+  mode: ultimate                       # "ultimate" (default) or "simple"
+  refMaxSec: 29                        # reference seconds, max 45 (default 15)
+  language: Spanish                    # informational; the model reads the text
+  format: mp3                          # mp3 (default) or wav
+  # style: "tono de documental"        # forces mode: simple — see below
+  # baseUrl: http://skywalker:7862      # overrides VOXCPM_BASE_URL here
+
+# mode: ultimate conditions on the reference audio AND its transcript, which
+# is what carries the speaker's cadence. mode: simple uses audio only.
+# `style` cannot ride along with `ultimate`: the model would read the
+# directive out loud. Pick nuance (ultimate, no style) or delivery control
+# (simple, with style) — the schema rejects the combination.
 
 recording:                             # optional recording settings
   outputDir: "."                       # output directory relative to playbook (default ".")

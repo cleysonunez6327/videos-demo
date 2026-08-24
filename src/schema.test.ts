@@ -62,6 +62,79 @@ describe("tts config", () => {
   });
 });
 
+describe("tts config: voxcpm", () => {
+  function parseVox(extra: Record<string, unknown>) {
+    return parseTts({ provider: "voxcpm", ...extra });
+  }
+
+  test("clones an archived voice with ultimate by default", () => {
+    const result = parseVox({ voice: "jeremy" });
+    assert.ok(result.success, issues(result));
+    assert.deepEqual(result.data.tts, {
+      provider: "voxcpm",
+      voice: "jeremy",
+      mode: "ultimate",
+      format: "mp3",
+      language: "Spanish",
+      cfgValue: 2.0,
+      inferenceTimesteps: 10,
+      refMaxSec: 15,
+      normalize: false,
+      denoise: false,
+    });
+  });
+
+  test("accepts a voice slug the client does not know about", () => {
+    // Voices are cloned from the lab UI and appear in the API at once, so a
+    // hardcoded list here would reject a voice that actually exists.
+    assert.ok(parseVox({ voice: "recien-clonada" }).success);
+  });
+
+  test("needs a voice or a style", () => {
+    const result = parseVox({});
+    assert.ok(!result.success);
+    assert.match(issues(result), /voice.*style/s);
+  });
+
+  test("a style alone implies simple, since ultimate would speak it aloud", () => {
+    const result = parseVox({ style: "tono de documental" });
+    assert.ok(result.success, issues(result));
+    assert.equal(result.data.tts.provider, "voxcpm");
+    if (result.data.tts.provider === "voxcpm") {
+      assert.equal(result.data.tts.mode, "simple");
+    }
+  });
+
+  test("rejects style combined with an explicit ultimate", () => {
+    const result = parseVox({ voice: "jeremy", style: "urgente", mode: "ultimate" });
+    assert.ok(!result.success);
+    assert.match(issues(result), /style/);
+  });
+
+  test("keeps an explicit mode when there is no style", () => {
+    const result = parseVox({ voice: "jeremy", mode: "simple" });
+    assert.ok(result.success, issues(result));
+    if (result.success && result.data.tts.provider === "voxcpm") {
+      assert.equal(result.data.tts.mode, "simple");
+    }
+  });
+
+  test("caps reference audio at the length the lab accepts", () => {
+    assert.ok(parseVox({ voice: "jeremy", refMaxSec: 45 }).success);
+    assert.ok(!parseVox({ voice: "jeremy", refMaxSec: 46 }).success);
+  });
+
+  test("takes a baseUrl override for when MagicDNS does not resolve", () => {
+    const result = parseVox({ voice: "jeremy", baseUrl: "http://100.74.189.100:7862" });
+    assert.ok(result.success, issues(result));
+    assert.ok(!parseVox({ voice: "jeremy", baseUrl: "no-es-una-url" }).success);
+  });
+
+  test("rejects an unknown provider", () => {
+    assert.ok(!parseTts({ provider: "qwen3", voice: "jeremy" }).success);
+  });
+});
+
 describe("segments", () => {
   test("requires a lowercase hyphenated id", () => {
     for (const id of ["Intro", "intro_1", "-intro", "intro segmento"]) {

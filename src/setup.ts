@@ -3,6 +3,26 @@ import { execa } from "execa";
 import type { SetupStep, Condition } from "./schema.js";
 import { executeAction } from "./executor.js";
 
+/**
+ * Whether a URL matches a glob pattern: `**` spans path separators, `*` does not.
+ *
+ * The two wildcards are swapped in through a placeholder rather than one after
+ * the other. Replacing `**` with `.*` first and then `*` with `[^/]*` rewrites
+ * the star that the first pass just produced, so `**\/dashboard` compiled to
+ * `^.[^/]*\/dashboard$` and matched nothing — every `url:` condition using `**`
+ * silently evaluated false, which reads exactly like a step being skipped on
+ * purpose.
+ */
+function urlMatches(pattern: string, url: string): boolean {
+  const ANY = "\u0000";
+  const source = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, ANY)
+    .replace(/\*/g, "[^/]*")
+    .replaceAll(ANY, ".*");
+  return new RegExp(`^${source}$`).test(url);
+}
+
 async function checkCondition(
   page: Page,
   condition: Condition
@@ -16,13 +36,7 @@ async function checkCondition(
     if (count > 0) return false;
   }
   if (condition.url) {
-    const url = page.url();
-    // Support glob-like patterns with **
-    const pattern = condition.url
-      .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-      .replace(/\*\*/g, ".*")
-      .replace(/\*/g, "[^/]*");
-    if (!new RegExp(`^${pattern}$`).test(url)) return false;
+    if (!urlMatches(condition.url, page.url())) return false;
   }
   return true;
 }
@@ -69,4 +83,4 @@ async function executeSetup(
   }
 }
 
-export { executeSetup, checkCondition };
+export { executeSetup, checkCondition, urlMatches };

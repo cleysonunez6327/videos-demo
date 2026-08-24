@@ -150,6 +150,22 @@ async function connect(): Promise<BrowserConnection> {
   const page = context.pages()[0];
   if (!page) throw new Error("No page found");
 
+  // Re-apply the colour scheme on every connection.
+  //
+  // Playwright drops its emulation overrides when a connectOverCDP client
+  // disconnects, and every ndemo command is one such client. Setting this once
+  // in the daemon looks right and then evaporates as soon as `page-state` runs,
+  // so a playbook asking for dark recorded light. Applying it here covers
+  // play, render and page-state alike.
+  try {
+    const info2: BrowserInfo = JSON.parse(fs.readFileSync(INFO_PATH, "utf-8"));
+    const playbook = loadPlaybook(info2.playbookPath);
+    await page.emulateMedia({ colorScheme: playbook.app.colorScheme });
+  } catch {
+    // A playbook that has since been moved or edited into an invalid state
+    // should not stop you from inspecting the browser that is already open.
+  }
+
   return { browser, page };
 }
 

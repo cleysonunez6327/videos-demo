@@ -36,8 +36,12 @@ segments:
 describe("loadPlaybook", () => {
   test("applies defaults", () => {
     const playbook = loadPlaybook(writePlaybook(MINIMAL));
-    assert.equal(playbook.tts.voice, "sal");
-    assert.equal(playbook.tts.model, "x-ai/grok-voice-tts-1.0");
+    // TTS defaults to llm4agents provider
+    assert.equal(playbook.tts.provider, "llm4agents");
+    if (playbook.tts.provider === "llm4agents") {
+      assert.equal(playbook.tts.voice, "sal");
+      assert.equal(playbook.tts.model, "x-ai/grok-voice-tts-1.0");
+    }
     assert.equal(playbook.app.viewport.width, 1920);
     assert.equal(playbook.recording.fps, 30);
   });
