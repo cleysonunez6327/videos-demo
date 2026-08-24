@@ -1,2 +1,53 @@
 #!/usr/bin/env node
-import("./dist/cli.js");
+/**
+ * Launcher that builds the toolkit the first time it is needed.
+ *
+ * `dist/` is gitignored, so a plugin installed from GitHub arrives as source
+ * only, and the plugin installer runs `npm install` with lifecycle scripts
+ * disabled — the sane default for third-party packages, which also means the
+ * `postinstall` hook never fires there. Without this, the first command a new
+ * install ever runs is an ERR_MODULE_NOT_FOUND for dist/cli.js.
+ *
+ * Building here rather than shipping `dist/` keeps compiler output out of the
+ * repository. The cost is a one-off pause on the first command.
+ */
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Anchored to this file, not to the working directory: the toolkit is almost
+// always invoked from the directory of the app being recorded.
+const root = dirname(fileURLToPath(import.meta.url));
+const entry = join(root, "dist", "cli.js");
+
+if (!existsSync(entry)) {
+  const require = createRequire(import.meta.url);
+  let compiler;
+  try {
+    compiler = require.resolve("typescript/bin/tsc");
+  } catch {
+    process.stderr.write(
+      `ndemo: this install has no build and TypeScript is missing.\n` +
+      `       cd ${root} && npm install\n`
+    );
+    process.exit(1);
+  }
+
+  process.stderr.write("ndemo: first run, building the toolkit once...\n");
+  const built = spawnSync(process.execPath, [compiler, "--project", root], {
+    cwd: root,
+    stdio: "inherit",
+  });
+
+  if (built.status !== 0 || !existsSync(entry)) {
+    process.stderr.write(
+      `ndemo: the build failed, so there is nothing to run.\n` +
+      `       cd ${root} && npm install && npm run build\n`
+    );
+    process.exit(1);
+  }
+}
+
+await import(entry);

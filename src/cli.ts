@@ -11,6 +11,7 @@ import { loadPlaybook } from "./playbook-io.js";
 import { checkBalance, API_KEY_ENV } from "./tts.js";
 import { loadEnvFiles } from "./env.js";
 import { execSync } from "node:child_process";
+import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -18,12 +19,25 @@ import path from "node:path";
 // read env at import time, so doing it here is early enough.
 loadEnvFiles();
 
+/** The single source of truth for the version is package.json. */
+function readVersion(): string {
+  try {
+    const require = createRequire(import.meta.url);
+    return (require("../package.json") as { version?: string }).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
 const program = new Command();
 
 program
   .name("ndemo")
   .description("Narrated demo video toolkit")
-  .version("0.1.0");
+  // Read rather than repeated: the literal here sat at 0.1.0 while the three
+  // manifests moved to 0.3.x, so `ndemo --version` reported a release that had
+  // not existed for a while.
+  .version(readVersion());
 
 // ─── open ────────────────────────────────────────────
 
