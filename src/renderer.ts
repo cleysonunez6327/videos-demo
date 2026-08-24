@@ -398,6 +398,7 @@ async function render(
           primaryColour: playbook.subtitles.primaryColour,
           outlineColour: playbook.subtitles.outlineColour,
           marginV: playbook.subtitles.marginV,
+          box: playbook.subtitles.box,
         }
       : undefined,
     music,

@@ -309,6 +309,15 @@ const SubtitlesSchema = z.object({
   outlineColour: z.string().default("&H000000"),
   /** Distance from the bottom edge. Around 22 clears the frame edge. */
   marginV: z.number().int().nonnegative().default(22),
+  /**
+   * Draw the text on a translucent band instead of relying on an outline.
+   *
+   * An outline alone holds up over flat backgrounds and falls apart over a
+   * dense UI, where the caption lands on top of code or table text and both
+   * become hard to read. The band separates them and behaves the same on a
+   * light page as on a dark one.
+   */
+  box: z.boolean().default(true),
 }).default({});
 
 const MusicSchema = z.object({

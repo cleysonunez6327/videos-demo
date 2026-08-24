@@ -15,6 +15,7 @@ interface BurnOptions {
   readonly primaryColour: string;
   readonly outlineColour: string;
   readonly marginV: number;
+  readonly box: boolean;
 }
 
 interface MusicOptions {
@@ -250,8 +251,10 @@ async function mergeAudioVideo(options: MergeOptions): Promise<void> {
       `subtitles='${escapeFilterPath(b.srtPath)}':force_style='` +
         `FontSize=${b.fontSize},` +
         `PrimaryColour=${b.primaryColour},` +
-        `OutlineColour=${b.outlineColour},` +
-        `BorderStyle=1,Outline=2,Shadow=0,` +
+        `OutlineColour=${b.box ? "&H80000000" : b.outlineColour},` +
+        // BorderStyle=3 fills a box with OutlineColour; Outline becomes its
+        // padding. The &H80 alpha keeps the picture readable through it.
+        `BorderStyle=${b.box ? 3 : 1},Outline=${b.box ? 4 : 2},Shadow=0,` +
         `Alignment=2,MarginV=${b.marginV}'`,
       "-c:v", "libx264",
       "-crf", "18",
