@@ -63,6 +63,12 @@ async function main() {
 
   const page = context.pages()[0] || await context.newPage();
 
+  // launchPersistentContext does not apply `colorScheme` to the page it opens
+  // at launch, and that is the page the daemon uses. Note this alone is not
+  // enough: Playwright clears emulation when a CDP client disconnects, so
+  // `connect()` re-applies it on every command.
+  await page.emulateMedia({ colorScheme: playbook.app.colorScheme });
+
   // Print connection info to stdout BEFORE navigation so the parent
   // unblocks immediately — page load and setup can take arbitrarily long.
   const cdpEndpoint = `http://localhost:${debugPort}`;
