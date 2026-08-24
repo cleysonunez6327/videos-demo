@@ -143,7 +143,7 @@ const Llm4AgentsTtsSchema = z.object({
 });
 
 /**
- * VoxCPM2-specific TTS configuration (the lab on skywalker:7862).
+ * VoxCPM2-specific TTS configuration.
  *
  * `voice` is a free string on purpose: voices are cloned from the lab UI and
  * show up in the API immediately, so any enum baked in here would reject a

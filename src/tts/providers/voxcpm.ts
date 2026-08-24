@@ -124,7 +124,7 @@ export function resolveBaseUrl(explicit?: string): string {
 // ─── VoxCPM2 Implementation ─────────────────────────────────
 
 /**
- * Client for the VoxCPM2 lab on skywalker:7862.
+ * Client for the VoxCPM2 lab.
  *
  * Two things about this service shape the code:
  * - It holds a global GPU lock, so requests must be serialized. Never fan out.
@@ -505,7 +505,7 @@ export class VoxCpmTTSClient implements VoxCpmPort {
 /**
  * Create a VoxCPM2 TTS client.
  *
- * @param customBaseUrl — Override the default `http://skywalker:7862`
+ * @param customBaseUrl — Beats VOXCPM_BASE_URL and the public default
  */
 export function createVoxCpmClient(customBaseUrl?: string): VoxCpmPort {
   return new VoxCpmTTSClient(customBaseUrl);

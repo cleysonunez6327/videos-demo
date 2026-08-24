@@ -72,7 +72,7 @@ export interface Llm4AgentsPort extends TTSPort {
 }
 
 /**
- * VoxCPM2-specific TTS operations (skywalker:7862).
+ * VoxCPM2-specific TTS operations.
  */
 export interface VoxCpmPort extends TTSPort {
   readonly provider: 'voxcpm';
