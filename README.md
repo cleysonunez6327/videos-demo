@@ -258,10 +258,23 @@ titleCard:                          # optional, adds a title frame
   duration: 600                     # milliseconds (default 600)
 
 tts:                                # optional, defaults shown
-  provider: llm4agents
+  provider: llm4agents              # llm4agents (default) or voxcpm
   model: x-ai/grok-voice-tts-1.0    # TTS model
   voice: sal                        # eve, ara, rex, sal or leo
   speed: 1.0                        # 0 < speed <= 4
+
+# Or narrate with a cloned voice on the local VoxCPM2 lab (skywalker:7862).
+# Same voices as the other labs on that box; 48 kHz, faster than real time,
+# apache-2.0 so the audio is fine for commercial use.
+tts:
+  provider: voxcpm
+  voice: angie                      # slug from GET /api/voices
+  mode: ultimate                    # ultimate keeps cadence; simple is timbre only
+  refMaxSec: 29                     # seconds of reference audio (max 45)
+  language: Spanish
+  format: mp3
+  # style: "tono urgente"           # designs delivery, but forces mode: simple
+  # baseUrl: http://100.74.189.100:7862   # when MagicDNS does not resolve
 
 recording:                          # optional, defaults shown
   outputDir: .                      # relative to playbook directory
