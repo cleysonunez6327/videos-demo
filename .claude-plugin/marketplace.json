@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Narrated demo videos of web apps, driven by Claude Code",
-    "version": "0.3.2"
+    "version": "0.4.0"
   },
   "plugins": [
     {
