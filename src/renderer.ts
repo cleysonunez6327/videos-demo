@@ -350,6 +350,7 @@ async function render(
     return {
       id: s.id,
       narration: s.narration,
+      subtitle: s.subtitle,
       audioPath: audio.audioPath,
       audioDurationMs: s.audioDuration ?? 0,
       videoDurationMs: timing.durationMs,
@@ -358,16 +359,27 @@ async function render(
 
   // Subtitles are written before the merge, not after: burning them in is a
   // video filter, so the file has to exist by the time ffmpeg runs.
+  const subtitleSegments = renderedSegments.map(s => ({
+    narration: s.narration,
+    subtitle: s.subtitle,
+    videoDurationMs: s.videoDurationMs,
+    audioDurationMs: s.audioDurationMs,
+  }));
+
+  // The on-screen track is the sidecar and the one that gets burned.
   const srtPath = finalOutput.replace(/\.mp4$/, ".srt");
-  const srtContent = generateSrt(
-    renderedSegments.map(s => ({
-      narration: s.narration,
-      videoDurationMs: s.videoDurationMs,
-      audioDurationMs: s.audioDurationMs,
-    })),
-    preSegmentDurationMs
-  );
-  fs.writeFileSync(srtPath, srtContent);
+  fs.writeFileSync(srtPath, generateSrt(subtitleSegments, preSegmentDurationMs, "onScreen"));
+
+  // A second track only exists when some segment reads differently from what
+  // is said. It rides inside the mp4 so a viewer can switch to the spoken
+  // wording; players that ignore embedded tracks simply never see it.
+  const hasSpokenVariant = renderedSegments.some(s => s.subtitle && s.subtitle !== s.narration);
+  const spokenSrtPath = hasSpokenVariant
+    ? finalOutput.replace(/\.mp4$/, ".spoken.srt")
+    : undefined;
+  if (spokenSrtPath) {
+    fs.writeFileSync(spokenSrtPath, generateSrt(subtitleSegments, preSegmentDurationMs, "spoken"));
+  }
 
   const music = playbook.music
     ? {
@@ -391,6 +403,12 @@ async function render(
     outputDir,
     preSegmentDurationMs,
     postSegmentDurationMs,
+    subtitleTracks: [
+      { path: srtPath, language: playbook.subtitles.onScreenLanguage },
+      ...(spokenSrtPath
+        ? [{ path: spokenSrtPath, language: playbook.subtitles.spokenLanguage }]
+        : []),
+    ],
     burn: playbook.subtitles.burn
       ? {
           srtPath,

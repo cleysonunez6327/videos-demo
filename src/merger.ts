@@ -18,6 +18,12 @@ interface BurnOptions {
   readonly box: boolean;
 }
 
+/** A subtitle file to carry inside the mp4, selectable by the viewer. */
+interface SubtitleTrack {
+  readonly path: string;
+  readonly language: string;
+}
+
 interface MusicOptions {
   readonly path: string;
   readonly volume: number;
@@ -35,6 +41,7 @@ interface MergeOptions {
   postSegmentDurationMs?: number;
   /** Burn subtitles into the picture. Forces a video re-encode. */
   burn?: BurnOptions | undefined;
+  subtitleTracks?: readonly SubtitleTrack[] | undefined;
   music?: MusicOptions | undefined;
 }
 
@@ -216,6 +223,12 @@ async function mergeAudioVideo(options: MergeOptions): Promise<void> {
   const args: string[] = ["-y", "-i", videoPath, "-i", narrationPath];
   if (options.music) args.push("-stream_loop", "-1", "-i", options.music.path);
 
+  // Subtitle files come in after the media, so their input indices start past
+  // the video, the narration and the optional music bed.
+  const tracks = options.subtitleTracks ?? [];
+  const firstTrackInput = options.music ? 3 : 2;
+  for (const track of tracks) args.push("-i", track.path);
+
   if (options.music) {
     // Loop the bed, trim it to the video, fade it out at the end, then mix
     // it under the narration. `duration=first` keeps the mix the length of
@@ -264,6 +277,15 @@ async function mergeAudioVideo(options: MergeOptions): Promise<void> {
   } else {
     args.push("-c:v", "copy");
   }
+
+  // mov_text is the only subtitle codec mp4 carries. Browsers ignore it — they
+  // need a <track> pointing at the sidecar — but desktop players and phones
+  // expose it as a language picker, which is the point of shipping it.
+  tracks.forEach((track, i) => {
+    args.push("-map", `${firstTrackInput + i}:s`);
+    args.push(`-metadata:s:s:${i}`, `language=${track.language}`);
+  });
+  if (tracks.length > 0) args.push("-c:s", "mov_text");
 
   args.push(
     "-c:a", "aac",

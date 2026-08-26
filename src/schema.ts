@@ -96,6 +96,15 @@ const SegmentSchema = z.object({
     "Segment ID must be lowercase alphanumeric with hyphens"
   ),
   narration: z.string().min(1).optional(),
+  /**
+   * On-screen text, when it should not be what the voice says.
+   *
+   * Leaving this out keeps subtitles and narration identical, which is the
+   * common case. Setting it lets a demo be spoken in one language and read in
+   * another: the burned track shows this, and the narration ships alongside as
+   * a selectable track so the viewer can switch.
+   */
+  subtitle: z.string().min(1).optional(),
   intent: z.string().min(1),
   actions: z.array(ActionSchema).default([]),
   timing: z.enum(["after", "parallel"]).default("after"),
@@ -309,6 +318,12 @@ const SubtitlesSchema = z.object({
   outlineColour: z.string().default("&H000000"),
   /** Distance from the bottom edge. Around 22 clears the frame edge. */
   marginV: z.number().int().nonnegative().default(22),
+  /**
+   * ISO 639-2 codes that label the tracks inside the mp4, so a player can name
+   * them instead of showing "Track 1" and "Track 2".
+   */
+  onScreenLanguage: z.string().min(2).default("spa"),
+  spokenLanguage: z.string().min(2).default("eng"),
   /**
    * Draw the text on a translucent band instead of relying on an outline.
    *

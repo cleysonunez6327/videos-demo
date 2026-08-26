@@ -1,7 +1,22 @@
 interface SubtitleSegment {
   narration: string | undefined;
+  /** On-screen text when it differs from the narration. */
+  subtitle?: string | undefined;
   videoDurationMs: number;
   audioDurationMs: number;
+}
+
+/**
+ * Which text a track reads from.
+ *
+ * `spoken` follows the voice. `onScreen` prefers the segment's own subtitle and
+ * falls back to the narration, so a playbook only has to write the field for
+ * the segments where the two differ.
+ */
+type SubtitleSource = "spoken" | "onScreen";
+
+function textFor(segment: SubtitleSegment, source: SubtitleSource): string | undefined {
+  return source === "onScreen" ? segment.subtitle ?? segment.narration : segment.narration;
 }
 
 const MAX_CUE_CHARS = 80;
@@ -76,14 +91,22 @@ function splitIntoCues(text: string): string[] {
   return cues;
 }
 
-function generateSrt(segments: SubtitleSegment[], initialOffsetMs = 0): string {
+function generateSrt(
+  segments: SubtitleSegment[],
+  initialOffsetMs = 0,
+  source: SubtitleSource = "spoken"
+): string {
   const entries: string[] = [];
   let index = 1;
   let offsetMs = initialOffsetMs;
 
   for (const segment of segments) {
-    if (segment.narration) {
-      const cues = splitIntoCues(segment.narration);
+    const text = textFor(segment, source);
+    if (text) {
+      // Cue lengths are measured on the text being shown, but the durations
+      // still come from the audio: a translation is rarely the same length as
+      // what was said, and pacing the cues by the spoken text would drift.
+      const cues = splitIntoCues(text);
       const totalChars = cues.reduce((sum, c) => sum + c.length, 0);
 
       let cueOffsetMs = offsetMs;
@@ -106,5 +129,5 @@ function generateSrt(segments: SubtitleSegment[], initialOffsetMs = 0): string {
   return entries.join("\n\n") + "\n";
 }
 
-export { generateSrt, splitIntoCues, formatSrtTime };
-export type { SubtitleSegment };
+export { generateSrt, splitIntoCues, formatSrtTime, textFor };
+export type { SubtitleSegment, SubtitleSource };
