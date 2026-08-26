@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 import { loadPlaybook } from "./playbook-io.js";
 import { executeSetup } from "./setup.js";
-import { zoomExtensionArgs, setBrowserZoom } from "./zoom.js";
+import { zoomExtensionArgs, keepZoomAcrossOrigins } from "./zoom.js";
 import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
@@ -92,7 +92,7 @@ async function main() {
   await page.goto(playbook.app.url, { waitUntil: "load" });
 
   // Apply real browser zoom via the extension
-  await setBrowserZoom(page, playbook.app.zoom * 100);
+  await keepZoomAcrossOrigins(page, playbook.app.zoom * 100);
 
   // Execute setup steps if any
   if (playbook.app.setup) {

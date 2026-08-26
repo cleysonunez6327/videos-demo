@@ -291,7 +291,13 @@ async function mergeAudioVideo(options: MergeOptions): Promise<void> {
     "-c:a", "aac",
     "-b:a", "192k",
     "-movflags", "+faststart",
-    "-shortest",
+    // Length is stated rather than inferred. `-shortest` looks at every mapped
+    // stream, and a subtitle track ends with the last spoken cue — which is
+    // earlier than the picture whenever a demo holds on screen after the
+    // narration stops. Once subtitles moved inside the mp4, they started
+    // deciding where the video ended: a 46 s recording came out at 40 s, with
+    // the closing segment missing and nothing reported.
+    "-t", (totalMs / 1000).toFixed(3),
     outputPath
   );
 

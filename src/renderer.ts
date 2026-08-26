@@ -9,7 +9,7 @@ import { executeSetup } from "./setup.js";
 import { ensureAudio } from "./tts.js";
 import { mergeAudioVideo } from "./merger.js";
 import { generateSrt } from "./subtitles.js";
-import { zoomExtensionArgs, setBrowserZoom } from "./zoom.js";
+import { zoomExtensionArgs, keepZoomAcrossOrigins } from "./zoom.js";
 import type { Page } from "playwright";
 import type { TitleCard } from "./schema.js";
 
@@ -159,10 +159,10 @@ async function render(
   const page = context.pages()[0] || await context.newPage();
 
   // Navigate to app and apply real browser zoom (needs an HTTP page for
-  // the extension content script). Zoom persists across navigations.
+  // the extension content script). Zoom is re-applied on every new origin.
   let startUrl = playbook.app.url;
   await page.goto(playbook.app.url, { waitUntil: "load" });
-  await setBrowserZoom(page, zoomPercent);
+  await keepZoomAcrossOrigins(page, zoomPercent);
 
   if (playbook.app.setup) {
     console.log("  Running setup...");
