@@ -39,51 +39,57 @@ program
   // not existed for a while.
   .version(readVersion());
 
+/**
+ * Wrap a command so success and failure leave the process the same way
+ * everywhere.
+ *
+ * Seven handlers carried an identical try/exit/catch/exit block; the only
+ * thing that varied was the call in the middle. The message loses a
+ * redundant prefix too: interpolating an Error prints its own "Error:" on
+ * top of ours, so a failed render used to announce itself as
+ * "Error: Error: Render failed at segment ...".
+ */
+function runCommand<Args extends readonly unknown[]>(
+  run: (...args: Args) => Promise<void>
+): (...args: Args) => Promise<never> {
+  return async (...args: Args): Promise<never> => {
+    try {
+      await run(...args);
+      process.exit(0);
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  };
+}
+
 // ─── open ────────────────────────────────────────────
 
 program
   .command("open")
   .description("Launch browser daemon and navigate to app")
   .argument("<playbook>", "Path to playbook YAML file")
-  .action(async (playbook: string) => {
-    try {
-      await open(playbook);
-      process.exit(0);
-    } catch (err) {
-      console.error(`Error: ${err}`);
-      process.exit(1);
-    }
-  });
+  .action(runCommand(async (playbook: string) => {
+    await open(playbook);
+  }));
 
 // ─── close ───────────────────────────────────────────
 
 program
   .command("close")
   .description("Shut down browser daemon")
-  .action(async () => {
-    try {
-      await close();
-      process.exit(0);
-    } catch (err) {
-      console.error(`Error: ${err}`);
-      process.exit(1);
-    }
-  });
+  .action(runCommand(async () => {
+    await close();
+  }));
 
 // ─── reset ───────────────────────────────────────────
 
 program
   .command("reset")
   .description("Navigate back to app URL (fresh state)")
-  .action(async () => {
-    try {
-      await reset();
-      process.exit(0);
-    } catch (err) {
-      console.error(`Error: ${err}`);
-      process.exit(1);
-    }
-  });
+  .action(runCommand(async () => {
+    await reset();
+  }));
 
 // ─── page-state ──────────────────────────────────────
 
@@ -91,19 +97,13 @@ program
   .command("page-state")
   .description("Print current page accessibility tree")
   .option("--screenshot", "Also save a screenshot")
-  .action(async (options: { screenshot?: boolean }) => {
-    try {
-      const { page } = await connect();
-      const output = await readPageState(page, {
-        screenshot: options.screenshot,
-      });
-      console.log(output);
-      process.exit(0);
-    } catch (err) {
-      console.error(`Error: ${err}`);
-      process.exit(1);
-    }
-  });
+  .action(runCommand(async (options: { screenshot?: boolean }) => {
+    const { page } = await connect();
+    const output = await readPageState(page, {
+      screenshot: options.screenshot,
+    });
+    console.log(output);
+  }));
 
 // ─── play ────────────────────────────────────────────
 
@@ -115,20 +115,14 @@ program
   .option("--from <id>", "Play from this segment")
   .option("--to <id>", "Stop after this segment")
   .option("--audio", "Play TTS narration audio alongside actions")
-  .action(async (playbook: string, options: {
+  .action(runCommand(async (playbook: string, options: {
     segment?: string;
     from?: string;
     to?: string;
     audio?: boolean;
   }) => {
-    try {
-      await play(playbook, options);
-      process.exit(0);
-    } catch (err) {
-      console.error(`Error: ${err}`);
-      process.exit(1);
-    }
-  });
+    await play(playbook, options);
+  }));
 
 // ─── render ──────────────────────────────────────────
 
@@ -137,15 +131,9 @@ program
   .description("Full pipeline: TTS → replay → merge → mp4")
   .argument("<playbook>", "Path to playbook YAML file")
   .option("--output <path>", "Output file path")
-  .action(async (playbook: string, options: { output?: string }) => {
-    try {
-      await render(playbook, options.output);
-      process.exit(0);
-    } catch (err) {
-      console.error(`Error: ${err}`);
-      process.exit(1);
-    }
-  });
+  .action(runCommand(async (playbook: string, options: { output?: string }) => {
+    await render(playbook, options.output);
+  }));
 
 // ─── subtitles ───────────────────────────────────
 
@@ -154,41 +142,35 @@ program
   .description("Generate SRT subtitle file from playbook")
   .argument("<playbook>", "Path to playbook YAML file")
   .option("--output <path>", "Output SRT file path")
-  .action(async (playbookPath: string, options: { output?: string }) => {
-    try {
-      const playbook = loadPlaybook(playbookPath);
-      const playbookName = path.basename(playbookPath, path.extname(playbookPath));
-      const outputDir = path.resolve(path.dirname(playbookPath), playbook.recording.outputDir);
+  .action(runCommand(async (playbookPath: string, options: { output?: string }) => {
+    const playbook = loadPlaybook(playbookPath);
+    const playbookName = path.basename(playbookPath, path.extname(playbookPath));
+    const outputDir = path.resolve(path.dirname(playbookPath), playbook.recording.outputDir);
 
-      // Timings only exist once a render has measured them. Without them every
-      // cue would silently collapse to 00:00:00,000.
-      const untimed = playbook.segments.filter(s => s.videoDuration === undefined);
-      if (untimed.length > 0) {
-        throw new Error(
-          `No timing data for: ${untimed.map(s => s.id).join(", ")}\n` +
-          `Subtitles are built from measured durations, so render first:\n` +
-          `  ndemo render ${playbookPath}`
-        );
-      }
-
-      const srtContent = generateSrt(
-        playbook.segments.map(s => ({
-          narration: s.narration,
-          videoDurationMs: s.videoDuration ?? 0,
-          audioDurationMs: s.audioDuration ?? 0,
-        })),
-        playbook.preSegmentDuration ?? 0
+    // Timings only exist once a render has measured them. Without them every
+    // cue would silently collapse to 00:00:00,000.
+    const untimed = playbook.segments.filter(s => s.videoDuration === undefined);
+    if (untimed.length > 0) {
+      throw new Error(
+        `No timing data for: ${untimed.map(s => s.id).join(", ")}\n` +
+        `Subtitles are built from measured durations, so render first:\n` +
+        `  ndemo render ${playbookPath}`
       );
-
-      const srtPath = options.output ?? path.join(outputDir, `${playbookName}.srt`);
-      fs.writeFileSync(srtPath, srtContent);
-      console.log(`✓ ${srtPath}`);
-      process.exit(0);
-    } catch (err) {
-      console.error(`Error: ${err}`);
-      process.exit(1);
     }
-  });
+
+    const srtContent = generateSrt(
+      playbook.segments.map(s => ({
+        narration: s.narration,
+        videoDurationMs: s.videoDuration ?? 0,
+        audioDurationMs: s.audioDuration ?? 0,
+      })),
+      playbook.preSegmentDuration ?? 0
+    );
+
+    const srtPath = options.output ?? path.join(outputDir, `${playbookName}.srt`);
+    fs.writeFileSync(srtPath, srtContent);
+    console.log(`✓ ${srtPath}`);
+  }));
 
 // ─── doctor ──────────────────────────────────────────
 

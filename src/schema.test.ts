@@ -261,3 +261,115 @@ describe("app", () => {
     assert.equal(result.data.app.colorScheme, "light");
   });
 });
+
+describe("action dialogs", () => {
+  function parseAction(action: Record<string, unknown>) {
+    return PlaybookSchema.safeParse({
+      ...base,
+      segments: [{ id: "s", intent: "mostrar", actions: [action] }],
+    });
+  }
+
+  const click = { type: "click", target: { text: "Rotate API key" } };
+
+  test("carries the disposition through to the action", () => {
+    const result = parseAction({ ...click, dialog: "accept" });
+    assert.ok(result.success, issues(result));
+    assert.equal(first(first(result.data.segments, "segment").actions, "action").dialog, "accept");
+  });
+
+  test("stays undefined when the action does not mention a dialog", () => {
+    const result = parseAction(click);
+    assert.ok(result.success, issues(result));
+    assert.equal(first(first(result.data.segments, "segment").actions, "action").dialog, undefined);
+  });
+
+  test("rejects a disposition nothing can act on", () => {
+    const result = parseAction({ ...click, dialog: "maybe" });
+    assert.ok(!result.success);
+    assert.match(issues(result), /dialog/);
+  });
+});
+
+describe("actions as a discriminated union", () => {
+  function parseAction(action: Record<string, unknown>) {
+    return PlaybookSchema.safeParse({
+      ...base,
+      segments: [{ id: "s", intent: "mostrar", actions: [action] }],
+    });
+  }
+
+  const target = { text: "Guardar" };
+
+  test("rejects a type action with no text to type", () => {
+    // The flat shape accepted this and handed undefined to Playwright
+    // mid-recording. Now it fails while the playbook is still a file.
+    const result = parseAction({ type: "type", target });
+    assert.ok(!result.success);
+    assert.match(issues(result), /text/);
+  });
+
+  test("rejects a select action with no option", () => {
+    const result = parseAction({ type: "select", target });
+    assert.ok(!result.success);
+    assert.match(issues(result), /option/);
+  });
+
+  test("rejects a press action with no key", () => {
+    const result = parseAction({ type: "press" });
+    assert.ok(!result.success);
+    assert.match(issues(result), /key/);
+  });
+
+  test("still rejects a click with no target", () => {
+    const result = parseAction({ type: "click" });
+    assert.ok(!result.success);
+    assert.match(issues(result), /target/);
+  });
+
+  test("names the offending action type when it is not one we know", () => {
+    const result = parseAction({ type: "teleport", target });
+    assert.ok(!result.success);
+    assert.match(issues(result), /click|discriminator/i);
+  });
+
+  test("gives a wait its default duration instead of the executor doing it", () => {
+    const result = parseAction({ type: "wait" });
+    assert.ok(result.success, issues(result));
+    const action = first(first(result.data.segments, "segment").actions, "action");
+    assert.equal(action.type === "wait" ? action.duration : null, 1000);
+  });
+
+  test("keeps a typing cadence when one is given", () => {
+    const result = parseAction({ type: "type", target, text: "hola", delay: 40 });
+    assert.ok(result.success, issues(result));
+    const action = first(first(result.data.segments, "segment").actions, "action");
+    assert.equal(action.type === "type" ? action.delay : null, 40);
+  });
+});
+
+describe("setup steps reuse the same action shapes", () => {
+  function parseSetup(setup: readonly Record<string, unknown>[]) {
+    return PlaybookSchema.safeParse({
+      ...base,
+      app: { url: "http://localhost:3000/", setup },
+    });
+  }
+
+  test("accepts a shell command", () => {
+    assert.ok(parseSetup([{ run: "cp a b" }]).success);
+  });
+
+  test("accepts a browser action carrying a condition", () => {
+    const result = parseSetup([
+      { type: "click", target: { text: "Login" }, if: { hidden: ".user" } },
+    ]);
+    assert.ok(result.success, issues(result));
+  });
+
+  test("applies the same field requirements as a segment action", () => {
+    const result = parseSetup([{ type: "type", target: { text: "Email" } }]);
+    assert.ok(!result.success);
+    assert.match(issues(result), /text/);
+  });
+});
