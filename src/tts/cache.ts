@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execa } from 'execa';
+import { probeDurationSec } from '../media.js';
 import type { Result } from './domain/types.js';
 import type { TTSError } from './domain/errors.js';
 import { Ok, Err } from './domain/types.js';
@@ -163,23 +163,11 @@ export function writeCachedAudio(
  * Probe the duration of an audio file using ffprobe.
  */
 export async function probeDuration(audioPath: string): Promise<Result<number, TTSError>> {
-  try {
-    const { stdout } = await execa('ffprobe', [
-      '-v', 'error',
-      '-show_entries', 'format=duration',
-      '-of', 'csv=p=0',
-      audioPath,
-    ]);
-
-    const seconds = parseFloat(stdout.trim());
-    if (isNaN(seconds)) {
-      return Err(TTSErrorHelpersCtor.invalidResponse('duration', stdout.trim()));
-    }
-
-    return Ok(Math.round(seconds * 1000)); // Return milliseconds
-  } catch (e) {
-    return Err(TTSErrorHelpersCtor.unknownError('cache', e));
+  const seconds = await probeDurationSec(audioPath);
+  if (seconds === null) {
+    return Err(TTSErrorHelpersCtor.invalidResponse('duration', audioPath));
   }
+  return Ok(Math.round(seconds * 1000));
 }
 
 /**
