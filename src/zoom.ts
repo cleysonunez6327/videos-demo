@@ -41,10 +41,23 @@ async function setBrowserZoom(page: Page, zoomPercent: number): Promise<void> {
   // but typed against playwright's Page (not @playwright/test's Page).
   await page.evaluate(
     (zoom: number) => window.postMessage({ type: "setTabZoom", browserZoom: zoom }, "*"),
-    zoomPercent,
+    extensionZoom(zoomPercent),
   );
   // The extension applies zoom asynchronously; wait for it to take effect.
   await page.waitForTimeout(200);
+}
+
+/**
+ * The integer percentage the zoom extension will accept.
+ *
+ * Its content script guards on `Number.isInteger(browserZoom)` and silently
+ * ignores anything else. A playbook zoom of 2.2 becomes 440.00000000000006
+ * once multiplied out, which fails that check — so the demo records at 100%
+ * with nothing reported. Only zoom values that survive binary floating point
+ * (1.25, 1.5, 2) ever worked by accident.
+ */
+function extensionZoom(zoomPercent: number): number {
+  return Math.round(zoomPercent);
 }
 
 /**
@@ -91,6 +104,7 @@ async function keepZoomAcrossOrigins(page: Page, zoomPercent: number): Promise<v
 
 export {
   ZOOM_EXTENSION_PATH,
+  extensionZoom,
   zoomExtensionArgs,
   setBrowserZoom,
   keepZoomAcrossOrigins,
