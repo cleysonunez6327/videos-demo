@@ -164,7 +164,7 @@ export class Llm4AgentsTTSClient implements Llm4AgentsPort {
     // Convert unified request to llm4agents-specific
     const llm4agentsRequest: Llm4AgentsRequest = {
       model: ModelId(request.model ?? TTS_CONFIG.llm4agents.defaultModel),
-      voice: VoiceName(request.voiceName ?? TTS_CONFIG.llm4agents.defaultVoice as any),
+      voice: VoiceName(request.voiceName ?? TTS_CONFIG.llm4agents.defaultVoice),
       speed: request.speed ?? TTS_CONFIG.llm4agents.defaultSpeed,
       input: request.text ?? '', // Will be validated in synthesizeLlm4Agents
     };
@@ -205,15 +205,11 @@ export class Llm4AgentsTTSClient implements Llm4AgentsPort {
       return Err(createTTSError.emptyAudio('llm4agents'));
     }
 
-    // Extract timing from response or estimate
     const contentType = response.headers.get('Content-Type') ?? 'audio/mpeg';
     const format = formatFromContentType(contentType);
 
     return Ok({
       audioBuffer: audioBytes,
-      sampleRate: 24000, // llm4agents typical output
-      durationSec: 0, // Would need ffprobe to get actual duration
-      generationSec: 0,
       format,
       extension: 'mp3',
     });

@@ -6,7 +6,6 @@ import {
   VoiceName,
   type CloneMode,
   type VoxCpmLanguage,
-  type GrokVoice,
 } from './types.js';
 
 // ─── Provider Configuration ───────────────────────────────────
@@ -50,9 +49,6 @@ export const TTS_CONFIG = {
     compareEndpoint: '/api/compare',
     warmupEndpoint: '/api/warmup',
     unloadEndpoint: '/api/unload',
-
-    /** Output is always 48 kHz. */
-    sampleRate: 48_000,
 
     /**
      * The lab starts cold on purpose — the first request pays for loading a
@@ -155,12 +151,12 @@ export type TTSRequest = Readonly<{
 export type TTSResponse = Readonly<{
   /** Raw audio bytes */
   audioBuffer: ArrayBuffer | Uint8Array;
-  /** Sample rate in Hz — 48000 on VoxCPM2, provider-dependent elsewhere */
-  sampleRate: number;
-  /** Duration of the generated audio in seconds */
-  durationSec: number;
-  /** How long the synthesis took in seconds */
-  generationSec: number;
+  // Duration, sample rate and generation time used to travel here and were
+  // read by nobody: the caller establishes duration with ffprobe on the file
+  // it just wrote — authoritative and format-independent — and the merger
+  // resamples everything to 48 kHz regardless of what the provider says.
+  // Telemetry that is wanted later belongs in a log at the provider, not in
+  // a field every implementation has to invent a value for.
   /** Output format */
   format: AudioFormat;
   /** File extension for the output */
@@ -243,7 +239,7 @@ export function createLlm4AgentsRequest(
 
   return {
     model: ModelId(params.model ?? config.defaultModel),
-    voice: VoiceName((params.voice ?? config.defaultVoice) as GrokVoice),
+    voice: VoiceName(params.voice ?? config.defaultVoice),
     speed: params.speed ?? config.defaultSpeed,
     input: params.input,
   };

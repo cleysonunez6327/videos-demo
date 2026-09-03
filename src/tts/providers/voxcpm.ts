@@ -355,11 +355,6 @@ export class VoxCpmTTSClient implements VoxCpmPort {
         return Err(httpStatusToTTSError('voxcpm', response.status, detail));
       }
 
-      const sampleRate = Number(
-        response.headers.get('X-Sample-Rate') ?? String(this.config.sampleRate)
-      );
-      const durationSec = Number(response.headers.get('X-Duration-Sec') ?? '0');
-      const generationSec = Number(response.headers.get('X-Generation-Sec') ?? '0');
       const modeHeader = response.headers.get('X-Mode');
       const styleFallback = response.headers.get('X-Style-Fallback') === '1';
       const contentType = response.headers.get('Content-Type') ?? 'audio/mpeg';
@@ -372,9 +367,6 @@ export class VoxCpmTTSClient implements VoxCpmPort {
 
       return Ok({
         audioBuffer,
-        sampleRate,
-        durationSec,
-        generationSec,
         format,
         extension: getExtensionForFormat(format),
         styleFallback,
