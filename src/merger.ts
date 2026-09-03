@@ -73,6 +73,19 @@ function escapeFilterPath(filePath: string): string {
 }
 
 /**
+ * Quote a path for ffmpeg's concat demuxer.
+ *
+ * The list format is `file '<path>'`, and inside single quotes ffmpeg has no
+ * escape character — the only way to include a quote is to close, emit an
+ * escaped one, and reopen. A directory named after someone's shop breaks the
+ * list otherwise, and the failure lands as a confusing ffmpeg parse error
+ * rather than anything pointing at the path.
+ */
+function quoteConcatPath(filePath: string): string {
+  return `'${filePath.replace(/'/g, "'\\''")}'`;
+}
+
+/**
  * Concatenate the per-segment narration into one track, padding every gap
  * with silence so the audio stays aligned with the picture.
  */
@@ -116,7 +129,7 @@ async function buildNarrationTrack(options: MergeOptions): Promise<string> {
   const filelistPath = path.join(outputDir, "filelist.txt");
   fs.writeFileSync(
     filelistPath,
-    audioFiles.map(f => `file '${path.resolve(f)}'`).join("\n")
+    audioFiles.map(f => `file ${quoteConcatPath(path.resolve(f))}`).join("\n")
   );
   scratch.push(filelistPath);
 
@@ -306,5 +319,5 @@ async function mergeAudioVideo(options: MergeOptions): Promise<void> {
   try { fs.unlinkSync(narrationPath); } catch { /* non-critical */ }
 }
 
-export { mergeAudioVideo, escapeFilterPath };
+export { mergeAudioVideo, escapeFilterPath, quoteConcatPath };
 export type { MergeOptions, BurnOptions, MusicOptions };
