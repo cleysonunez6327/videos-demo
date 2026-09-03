@@ -113,10 +113,10 @@ async function play(
 
 function describeAction(action: Action): string {
   if (action.type === "wait")
-    return `wait ${action.duration ?? 1000}ms`;
+    return `wait ${action.duration}ms`;
   if (action.type === "press")
     return `press ${action.key}`;
-  const target = action.target!;
+  const target = action.target;
   const loc = target.role
     ? `[${target.role}${target.name ? ` "${target.name}"` : ""}]`
     : target.selector ?? target.text ?? target.label ?? "?";

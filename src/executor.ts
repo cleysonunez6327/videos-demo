@@ -11,18 +11,35 @@ async function executeAction(
 ): Promise<void> {
   const showCursor = options.cursor ?? false;
 
-  if (action.type === "wait") {
-    await page.waitForTimeout(action.duration ?? 1000);
-    return;
+  // Registered before the action runs: the dialog opens during the click and
+  // blocks it until something answers.
+  if (action.dialog) {
+    const answer = action.dialog;
+    page.once("dialog", (dialog) => {
+      // Swallow the rejection: the daemon's page outlives a single `play`, so
+      // a handler left over from an earlier run may have answered this dialog
+      // already, and the late reply throws "No dialog is showing".
+      void (answer === "accept" ? dialog.accept() : dialog.dismiss()).catch(() => {});
+    });
   }
 
-  if (action.type === "press") {
-    await page.keyboard.press(action.key!);
+  if (action.type === "wait") {
+    await page.waitForTimeout(action.duration);
+    // A wait carrying a `done` is asking to pause *until* something is true,
+    // with the duration as a floor. Returning early here made the condition
+    // silently decorative, which reads as a passing step right up until the
+    // next action fails on a page that was never ready.
     if (action.done) await waitForDone(page, action.done);
     return;
   }
 
-  const locator = toLocator(page, action.target!);
+  if (action.type === "press") {
+    await page.keyboard.press(action.key);
+    if (action.done) await waitForDone(page, action.done);
+    return;
+  }
+
+  const locator = toLocator(page, action.target);
 
   if (showCursor && (action.type === "click" || action.type === "type"
       || action.type === "hover" || action.type === "select")) {
@@ -38,7 +55,7 @@ async function executeAction(
       if (showCursor) await hideCursor(page);
       await locator.fill("");
       await locator.pressSequentially(
-        action.text!,
+        action.text,
         { delay: action.delay ?? 80 }
       );
       break;
@@ -51,7 +68,7 @@ async function executeAction(
       break;
     case "select":
       if (showCursor) await clickEffect(page);
-      await locator.selectOption(action.option!);
+      await locator.selectOption(action.option);
       break;
   }
 

@@ -2,8 +2,33 @@ import { z } from "zod";
 
 // ─── Target ──────────────────────────────────────────
 
+/**
+ * The ARIA roles Playwright's `getByRole` accepts.
+ *
+ * Kept here rather than left as a bare string so a typo is a playbook error
+ * instead of a locator that matches nothing at record time, and so the value
+ * reaches Playwright already narrowed — the cast this used to need was the
+ * only `any` in the resolution path. If the two lists ever drift apart the
+ * assignment in `toLocator` stops compiling, which is the point.
+ */
+const ARIA_ROLES = [
+  "alert", "alertdialog", "application", "article", "banner", "blockquote",
+  "button", "caption", "cell", "checkbox", "code", "columnheader", "combobox",
+  "complementary", "contentinfo", "definition", "deletion", "dialog",
+  "directory", "document", "emphasis", "feed", "figure", "form", "generic",
+  "grid", "gridcell", "group", "heading", "img", "insertion", "link", "list",
+  "listbox", "listitem", "log", "main", "marquee", "math", "menu", "menubar",
+  "menuitem", "menuitemcheckbox", "menuitemradio", "meter", "navigation",
+  "none", "note", "option", "paragraph", "presentation", "progressbar",
+  "radio", "radiogroup", "region", "row", "rowgroup", "rowheader", "scrollbar",
+  "search", "searchbox", "separator", "slider", "spinbutton", "status",
+  "strong", "subscript", "superscript", "switch", "tab", "table", "tablist",
+  "tabpanel", "term", "textbox", "time", "timer", "toolbar", "tooltip", "tree",
+  "treegrid", "treeitem",
+] as const;
+
 const TargetSchema = z.object({
-  role: z.string().optional(),
+  role: z.enum(ARIA_ROLES).optional(),
   name: z.string().optional(),
   label: z.string().optional(),
   text: z.string().optional(),
@@ -13,6 +38,11 @@ const TargetSchema = z.object({
 }).refine(
   t => Object.values(t).some(Boolean),
   "Target needs at least one field"
+).refine(
+  // `name` is an option of getByRole, so on its own it selects nothing and
+  // silently falls through to whichever other field is present.
+  t => t.name === undefined || t.role !== undefined,
+  "`name` only narrows a `role`; give the target a role or drop the name"
 );
 
 // ─── Done Condition ──────────────────────────────────
@@ -51,42 +81,89 @@ const ConditionSchema = z.object({
 
 // ─── Action ──────────────────────────────────────────
 
-const ActionBaseSchema = z.object({
-  type: z.enum([
-    "click", "type", "hover", "scroll",
-    "wait", "select", "press"
-  ]),
-  target: TargetSchema.optional(),
-  text: z.string().optional(),
-  key: z.string().optional(),
-  delay: z.number().optional(),
-  duration: z.number().optional(),
-  option: z.string().optional(),
+/** Fields every action carries, whatever it does. */
+const ACTION_COMMON = {
+  // What to do with a native dialog this action triggers. Playwright's
+  // default is to dismiss, so a control guarded by `confirm()` quietly does
+  // nothing while the step still reports success.
+  //
+  // Only takes effect under `render`, which owns its browser. `play` drives
+  // the daemon over CDP, and dialog events do not reach a page attached that
+  // way — the dialog is dismissed no matter what this says. Verify anything
+  // behind a confirm() with a render, not a play.
+  dialog: z.enum(["accept", "dismiss"]).optional(),
   done: DoneConditionSchema.optional(),
-});
-
-const actionRefine = (action: { type: string; target?: unknown }) => {
-  if (action.type === "wait") return true;
-  if (action.type === "press") return true;
-  return action.target !== undefined;
 };
-const actionRefineMsg = "Non-wait/press actions require a target";
 
-const ActionSchema = ActionBaseSchema.refine(actionRefine, actionRefineMsg);
+/**
+ * The actions, as a discriminated union rather than one shape with every
+ * field optional.
+ *
+ * The flat shape only ever checked that non-wait actions carried a target.
+ * Nothing stopped a `type` without text, a `select` without an option or a
+ * `press` without a key: those parsed cleanly and then handed `undefined` to
+ * Playwright at run time, mid-recording. Here each action declares exactly
+ * what it needs, so the playbook is rejected while it is still a file, and
+ * the executor reads the fields without non-null assertions.
+ *
+ * `extra` lets setup steps reuse these definitions with their own `if`
+ * condition bolted on, rather than restating the seven shapes.
+ */
+function actionVariants<Extra extends z.ZodRawShape>(extra: Extra) {
+  return [
+    z.object({ type: z.literal("click"), target: TargetSchema, ...ACTION_COMMON, ...extra }),
+    z.object({ type: z.literal("hover"), target: TargetSchema, ...ACTION_COMMON, ...extra }),
+    z.object({ type: z.literal("scroll"), target: TargetSchema, ...ACTION_COMMON, ...extra }),
+    z.object({
+      type: z.literal("type"),
+      target: TargetSchema,
+      text: z.string(),
+      /** Milliseconds between keystrokes; only typing has a cadence. */
+      delay: z.number().optional(),
+      ...ACTION_COMMON,
+      ...extra,
+    }),
+    z.object({ type: z.literal("select"), target: TargetSchema, option: z.string(), ...ACTION_COMMON, ...extra }),
+    z.object({ type: z.literal("press"), key: z.string(), ...ACTION_COMMON, ...extra }),
+    // A wait needs no target, and its default lives here rather than being
+    // re-applied at each call site.
+    z.object({ type: z.literal("wait"), duration: z.number().default(1000), ...ACTION_COMMON, ...extra }),
+  ] as const;
+}
+
+const ActionSchema = z.discriminatedUnion("type", actionVariants({}));
 
 // ─── Setup Step ──────────────────────────────────────
 
-const SetupStepSchema = z.union([
-  // Shell command
-  z.object({
-    run: z.string().min(1),
-    if: ConditionSchema.optional(),
-  }),
-  // Browser action with optional condition
-  ActionBaseSchema.extend({
-    if: ConditionSchema.optional(),
-  }).refine(actionRefine, actionRefineMsg),
-]);
+/**
+ * Route a setup step to its branch before validating it.
+ *
+ * A plain `z.union` reports "Invalid input" when every branch fails, which
+ * hides the actual mistake: a shell step and a browser action share no
+ * fields, so the union cannot guess which one the author meant and reports
+ * neither. A shell step is recognised by `run`, so it gets a discriminant of
+ * its own here and is routed like any other step — and the error then comes
+ * from the single branch that applies, naming the field that is missing.
+ */
+const SetupStepSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return value;
+    }
+    const step = value as Record<string, unknown>;
+    return step["type"] === undefined && typeof step["run"] === "string"
+      ? { ...step, type: "run" }
+      : step;
+  },
+  z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("run"),
+      run: z.string().min(1),
+      if: ConditionSchema.optional(),
+    }),
+    ...actionVariants({ if: ConditionSchema.optional() }),
+  ])
+);
 
 // ─── Segment ─────────────────────────────────────────
 
